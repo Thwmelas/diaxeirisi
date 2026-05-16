@@ -1,0 +1,11 @@
+data/
+logs/
+mosquitto/
+
+# Generated or backup password files
+config/passwd.backup*
+config/*.backup*
+
+# Backup files
+*.backup.*
+*.backup
