@@ -2,42 +2,51 @@ import paho.mqtt.client as mqttclient
 import time
 import json
 
+# Κρατάμε κανονικά το on_connect callback
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code == 0:
-        print("Drone 1 (Publisher) connected successfully!")
         global connected
         connected = True
     else:
-        print(f"Connection failed with code {reason_code}")
+        print(f"Connection failed: {reason_code}")
 
 connected = False
 
-# Create client (NO username_pw_set needed because of allow_anonymous)
-client = mqttclient.Client(mqttclient.CallbackAPIVersion.VERSION2, "Anonymous_Drone_1")
-client.on_connect = on_connect
+# Αυτή είναι η συνάρτηση που θα δώσεις στην ομάδα σου!
+def send_drone_alert(drone_id, object_name, coordinates, size):
+    """
+    Αυτή τη συνάρτηση θα την καλεί η ομάδα του YOLO/Simulation.
+    Παίρνει live ορίσματα και τα στέλνει μέσω MQTT.
+    """
+    global connected
+    
+    # Αρχικοποίηση client
+    client = mqttclient.Client(mqttclient.CallbackAPIVersion.VERSION2, f"Publisher_{drone_id}")
+    client.on_connect = on_connect
 
-# Connect to local Docker broker
-client.connect("localhost", 1883)
-client.loop_start()
+    client.connect("localhost", 1883)
+    client.loop_start()
 
-while not connected:
+    # Αναμονή για σύνδεση
+    while not connected:
+        time.sleep(0.1)
+
+    # Δυναμικό Topic ανάλογα με το ποιο drone εντόπισε το αντικείμενο
+    topic = f"drones/{drone_id}/obstacles"
+    
+    # Δυναμικό Payload με τα πραγματικά δεδομένα της προσομοίωσης
+    obstacle_data = {
+        "drone_id": drone_id,
+        "object": object_name,
+        "location": coordinates,  # π.χ. [x, y, z]
+        "size": size,             # π.χ. [width, height]
+        "velocity": [0, 0, 0]     # Μπορεί να προστεθεί αργότερα
+    }
+
+    json_payload = json.dumps(obstacle_data)
+    client.publish(topic, json_payload)
+    
+    # Κλείσιμο loop με ασφάλεια
     time.sleep(0.2)
-
-# The payload (mimicking YOLOv5 detection)
-topic = "drones/drone_1/obstacles"
-obstacle_data = {
-    "drone_id": "drone_1",
-    "object": "tree",
-    "location": [34.5, -118.2, 15.0],
-    "size": [2.5, 7.0],
-    "velocity": [0, 0, 0]
-}
-
-json_payload = json.dumps(obstacle_data)
-
-print(f"Publishing to {topic}...")
-client.publish(topic, json_payload)
-print("Message sent!")
-
-time.sleep(1)
-client.loop_stop()
+    client.loop_stop()
+    connected = False # Reset για την επόμενη κλήση
