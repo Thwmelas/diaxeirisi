@@ -3,7 +3,7 @@
 - ROS 2 Humble
 - Gazebo Classic 11.10.2
 - PX4-Autopilot v1.14.3 cloned ξεχωριστά στο `~/PX4-Autopilot`
-1. Clone οτι υπαρχει σε αυτο το branch
+1. Clone οτι υπαρχει σε αυτο το branch(εγω τα εχω ολα σε ενα directory drone_ws)
 2. 2. Clone το PX4-Autopilot:
 ```bash
    git clone https://github.com/PX4/PX4-Autopilot.git --recursive ~/PX4-Autopilot
