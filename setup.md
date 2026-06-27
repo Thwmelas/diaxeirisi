@@ -12,7 +12,7 @@
 ```
 3. Τρέξε το setup script εφαρμόζει το patch για RGB κάμερα στο iris model:
 ```bash
-   cd ~/drone_ws
+   
    bash setup.sh
 ```
 4. Build το PX4-Autopilot και το ROS2 workspace
