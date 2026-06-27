@@ -13,7 +13,7 @@ def generate_launch_description():
 
     #2 PX4 script: σηκώνει gzserver + κάνει spawn 3 iris drones + ανοίγει gzclient
     start_swarm = ExecuteProcess(
-        cmd=['./Tools/simulation/gazebo-classic/sitl_multiple_run.sh', '-n', '3', '-m', 'iris', '-w', 'empty'],
+        cmd=['./Tools/simulation/gazebo-classic/sitl_multiple_run.sh', '-n', '3', '-m', 'typhoon_h480', '-w', 'empty'],
         cwd=px4_dir,
         output='screen'
     )
