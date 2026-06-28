@@ -1,0 +1,188 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="default">
+    <include><uri>model://sun</uri></include>
+    <include><uri>model://ground_plane</uri></include>
+
+    <physics type='ode'>
+      <real_time_update_rate>250</real_time_update_rate>
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+    <!-- ================= Houses (8) - outer ring 34-40m ================= -->
+    <include><uri>model://house</uri><name>house_1</name><pose>34.0 0.0 0 0 0 1.57</pose></include>
+    <include><uri>model://house</uri><name>house_2</name><pose>28.3 28.3 0 0 0 2.36</pose></include>
+    <include><uri>model://house</uri><name>house_3</name><pose>0.0 34.0 0 0 0 3.14</pose></include>
+    <include><uri>model://house</uri><name>house_4</name><pose>-28.3 28.3 0 0 0 3.93</pose></include>
+    <include><uri>model://house</uri><name>house_5</name><pose>-34.0 0.0 0 0 0 4.71</pose></include>
+    <include><uri>model://house</uri><name>house_6</name><pose>-28.3 -28.3 0 0 0 5.50</pose></include>
+    <include><uri>model://house</uri><name>house_7</name><pose>0.0 -34.0 0 0 0 6.28</pose></include>
+    <include><uri>model://house</uri><name>house_8</name><pose>28.3 -28.3 0 0 0 0.79</pose></include>
+
+    <!-- ================= Trees (24) - two rings, 16m and 26m ================= -->
+    <include><uri>model://oak_tree</uri><name>oak_tree_1</name><pose>16.0 0.0 0 0 0 0.00</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_1</name><pose>25.1 6.7 0 0 0 0.26</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_2</name><pose>13.9 8.0 0 0 0 0.52</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_2</name><pose>18.4 18.4 0 0 0 0.79</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_3</name><pose>8.0 13.9 0 0 0 1.05</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_3</name><pose>6.7 25.1 0 0 0 1.31</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_4</name><pose>0.0 16.0 0 0 0 1.57</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_4</name><pose>-6.7 25.1 0 0 0 1.83</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_5</name><pose>-8.0 13.9 0 0 0 2.09</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_5</name><pose>-18.4 18.4 0 0 0 2.36</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_6</name><pose>-13.9 8.0 0 0 0 2.62</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_6</name><pose>-25.1 6.7 0 0 0 2.88</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_7</name><pose>-16.0 0.0 0 0 0 3.14</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_7</name><pose>-25.1 -6.7 0 0 0 3.40</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_8</name><pose>-13.9 -8.0 0 0 0 3.67</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_8</name><pose>-18.4 -18.4 0 0 0 3.93</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_9</name><pose>-8.0 -13.9 0 0 0 4.19</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_9</name><pose>-6.7 -25.1 0 0 0 4.45</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_10</name><pose>-0.0 -16.0 0 0 0 4.71</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_10</name><pose>6.7 -25.1 0 0 0 4.97</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_11</name><pose>8.0 -13.9 0 0 0 5.24</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_11</name><pose>18.4 -18.4 0 0 0 5.50</pose></include>
+    <include><uri>model://oak_tree</uri><name>oak_tree_12</name><pose>13.9 -8.0 0 0 0 5.76</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_tree_12</name><pose>25.1 -6.7 0 0 0 6.02</pose></include>
+
+    <!-- ================= Cars (9) - ring 9-14m ================= -->
+    <include><uri>model://car</uri><name>car_1</name><pose>9.0 0.0 0 0 0 1.57</pose></include>
+    <include><uri>model://car</uri><name>car_2</name><pose>8.8 7.4 0 0 0 2.27</pose></include>
+    <include><uri>model://car</uri><name>car_3</name><pose>2.4 13.8 0 0 0 2.97</pose></include>
+    <include><uri>model://car</uri><name>car_4</name><pose>-4.5 7.8 0 0 0 3.67</pose></include>
+    <include><uri>model://car</uri><name>car_5</name><pose>-10.8 3.9 0 0 0 4.36</pose></include>
+    <include><uri>model://car</uri><name>car_6</name><pose>-13.2 -4.8 0 0 0 5.06</pose></include>
+    <include><uri>model://car</uri><name>car_7</name><pose>-4.5 -7.8 0 0 0 5.76</pose></include>
+    <include><uri>model://car</uri><name>car_8</name><pose>2.0 -11.3 0 0 0 6.46</pose></include>
+    <include><uri>model://car</uri><name>car_9</name><pose>10.7 -9.0 0 0 0 7.16</pose></include>
+
+    <!-- ================= Buses (2) ================= -->
+    <include><uri>model://bus</uri><name>bus_1</name><pose>-24.6 18.9 0 0 0 1.20</pose></include>
+    <include><uri>model://bus</uri><name>bus_2</name><pose>24.6 -18.9 0 0 0 -1.20</pose></include>
+
+    <!-- ================= Boats (2) ================= -->
+    <include><uri>model://boat</uri><name>boat_1</name><pose>-13.8 -33.3 0 0 0 0.30</pose></include>
+    <include><uri>model://boat</uri><name>boat_2</name><pose>-9.0 -36.0 0 0 0 1.10</pose></include>
+
+    <!-- ================= People (12) ================= -->
+    <include><uri>model://standing_person</uri><name>standing_person_1</name><pose>5.0 0.0 0 0 0 0.00</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_1</name><pose>4.9 4.9 0 0 0 0.79</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_2</name><pose>0.0 5.0 0 0 0 1.57</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_2</name><pose>-4.9 4.9 0 0 0 2.36</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_3</name><pose>-5.0 0.0 0 0 0 3.14</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_3</name><pose>-4.9 -4.9 0 0 0 3.93</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_4</name><pose>0.0 -5.0 0 0 0 4.71</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_4</name><pose>4.9 -4.9 0 0 0 5.50</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_5</name><pose>10.2 4.2 0 0 0 0.39</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_5</name><pose>-4.2 10.2 0 0 0 1.96</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_6</name><pose>-10.2 -4.2 0 0 0 3.53</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_6</name><pose>4.2 -10.2 0 0 0 5.11</pose></include>
+
+    <!-- ================= Overhead cable street line (y=-3) ================= -->
+    <model name="cable_pole_1">
+      <static>true</static>
+      <pose>-30 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_pole_2">
+      <static>true</static>
+      <pose>-18 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_pole_3">
+      <static>true</static>
+      <pose>-6 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_pole_4">
+      <static>true</static>
+      <pose>6 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_pole_5">
+      <static>true</static>
+      <pose>18 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_pole_6">
+      <static>true</static>
+      <pose>30 -3 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual>
+        <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>6</length></cylinder></geometry><pose>0 0 3 0 0 0</pose></collision>
+      </link>
+    </model>
+    <model name="cable_segment_1">
+      <static>true</static>
+      <pose>-24 -3 5.8 1.5708 0 0</pose>
+      <link name="link"><visual name="visual"><geometry><cylinder><radius>0.02</radius><length>12</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material></visual></link>
+    </model>
+    <model name="cable_segment_2">
+      <static>true</static>
+      <pose>-12 -3 5.8 1.5708 0 0</pose>
+      <link name="link"><visual name="visual"><geometry><cylinder><radius>0.02</radius><length>12</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material></visual></link>
+    </model>
+    <model name="cable_segment_3">
+      <static>true</static>
+      <pose>0 -3 5.8 1.5708 0 0</pose>
+      <link name="link"><visual name="visual"><geometry><cylinder><radius>0.02</radius><length>12</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material></visual></link>
+    </model>
+    <model name="cable_segment_4">
+      <static>true</static>
+      <pose>12 -3 5.8 1.5708 0 0</pose>
+      <link name="link"><visual name="visual"><geometry><cylinder><radius>0.02</radius><length>12</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material></visual></link>
+    </model>
+    <model name="cable_segment_5">
+      <static>true</static>
+      <pose>24 -3 5.8 1.5708 0 0</pose>
+      <link name="link"><visual name="visual"><geometry><cylinder><radius>0.02</radius><length>12</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material></visual></link>
+    </model>
+
+    <include><uri>model://car</uri><name>car_outer_1</name><pose>19.3 5.2 0 0 0 1.83</pose></include>
+    <include><uri>model://car</uri><name>car_outer_2</name><pose>5.2 19.3 0 0 0 2.88</pose></include>
+    <include><uri>model://car</uri><name>car_outer_3</name><pose>-14.1 14.1 0 0 0 3.93</pose></include>
+    <include><uri>model://car</uri><name>car_outer_4</name><pose>-19.3 -5.2 0 0 0 4.97</pose></include>
+    <include><uri>model://car</uri><name>car_outer_5</name><pose>-5.2 -19.3 0 0 0 6.02</pose></include>
+    <include><uri>model://car</uri><name>car_outer_6</name><pose>14.1 -14.1 0 0 0 7.07</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_outer_1</name><pose>22.0 0.0 0 0 0 0.00</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_outer_2</name><pose>11.0 19.1 0 0 0 1.05</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_outer_3</name><pose>-11.0 19.1 0 0 0 2.09</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_outer_4</name><pose>-22.0 0.0 0 0 0 3.14</pose></include>
+    <include><uri>model://standing_person</uri><name>standing_person_outer_5</name><pose>-11.0 -19.1 0 0 0 4.19</pose></include>
+    <include><uri>model://walking_person</uri><name>walking_person_outer_6</name><pose>11.0 -19.1 0 0 0 5.24</pose></include>
+
+    <!-- ================= Fire placeholders ================= -->
+    <model name="fire_1">
+      <static>true</static>
+      <pose>0 -45 0 0 0 0</pose>
+      <link name="link">
+        <visual name="flame_base"><geometry><sphere><radius>0.6</radius></sphere></geometry><pose>0 0 0.5 0 0 0</pose><material><ambient>1 0.3 0 1</ambient><diffuse>1 0.3 0 1</diffuse><emissive>1 0.4 0 1</emissive></material></visual>
+        <visual name="flame_top"><geometry><sphere><radius>0.35</radius></sphere></geometry><pose>0 0 1.1 0 0 0</pose><material><ambient>1 0.6 0 1</ambient><diffuse>1 0.6 0 1</diffuse><emissive>1 0.6 0 1</emissive></material></visual>
+      </link>
+    </model>
+    <model name="fire_2">
+      <static>true</static>
+      <pose>6 -48 0 0 0 0</pose>
+      <link name="link">
+        <visual name="flame_base"><geometry><sphere><radius>0.5</radius></sphere></geometry><pose>0 0 0.45 0 0 0</pose><material><ambient>1 0.3 0 1</ambient><diffuse>1 0.3 0 1</diffuse><emissive>1 0.4 0 1</emissive></material></visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
