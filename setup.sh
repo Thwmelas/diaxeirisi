@@ -3,8 +3,8 @@ set -e
 
 PX4_GAZEBO_DIR="$HOME/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PATCH_FILE="$SCRIPT_DIR/iris_camera.patch"
-WORLD_FILE="$SCRIPT_DIR/yolo_scenario.world"
+PATCH_FILE="$SCRIPT_DIR/drone_description/iris_camera.patch"
+WORLD_FILE="$SCRIPT_DIR/drone_description/yolo_scenario.world"
 MODELS_DIR="$HOME/.gazebo/models"
 
 if [ ! -d "$PX4_GAZEBO_DIR" ]; then

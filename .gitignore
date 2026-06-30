@@ -1,6 +1,9 @@
+decisions.log
+*.bak
+test_frame.jpg
 build/
 install/
 log/
-src/
-**/__pycache__/
+src/px4_msgs/
+__pycache__/
 *.pyc
