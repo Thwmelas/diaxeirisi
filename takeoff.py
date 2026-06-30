@@ -4,43 +4,34 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand
 import math
 
-# Namespace του drone που θέλουμε να ελέγξουμε.
-# Στο swarm setup (sitl_multiple_run.sh) τα drones παίρνουν namespace px4_1, px4_2, px4_3 κτλ
 DRONE_NS = "px4_1"
-
-#Το sitl_multiple_run.sh δίνει mavlink_id = 1 + N (instance number)
-# δηλαδή το px4_1 (N=1) έχει MAVLink/PX4 system_id = 2 το px4_2 system_id = 3, κλπ
-#Αν το target_system δεν ταιριάζει το PX4 αγνοεί τις εντολές Arm/SetMode
 TARGET_SYSTEM_ID = int(DRONE_NS.split("_")[1]) + 1
+
 
 class OffboardControl(Node):
     def __init__(self):
         super().__init__('takeoff_node')
-
         qos_sensor = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
-
         qos_command = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
-
         self.offboard_ctrl_pub = self.create_publisher(
             OffboardControlMode, f'/{DRONE_NS}/fmu/in/offboard_control_mode', qos_sensor)
         self.trajectory_pub = self.create_publisher(
             TrajectorySetpoint, f'/{DRONE_NS}/fmu/in/trajectory_setpoint', qos_sensor)
         self.command_pub = self.create_publisher(
             VehicleCommand, f'/{DRONE_NS}/fmu/in/vehicle_command', qos_command)
-
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.offboard_setpoint_counter = 0
-        self.takeoff_height = -5.0  # -5.0 = 5 μέτρα πανω 
+        self.takeoff_height = -5.0  # -5.0 = 5 μέτρα πάνω
 
     def timer_callback(self):
         mode_msg = OffboardControlMode()
@@ -70,11 +61,17 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1
 
-    def publish_vehicle_command(self, command, param1=0.0, param2=0.0):
+    def publish_vehicle_command(self, command, param1=0.0, param2=0.0, param3=0.0,
+                                  param4=0.0, param5=0.0, param6=0.0, param7=0.0):
         msg = VehicleCommand()
         msg.command = command
         msg.param1 = float(param1)
         msg.param2 = float(param2)
+        msg.param3 = float(param3)
+        msg.param4 = float(param4)
+        msg.param5 = float(param5)
+        msg.param6 = float(param6)
+        msg.param7 = float(param7)
         msg.target_system = TARGET_SYSTEM_ID
         msg.target_component = 1
         msg.source_system = 1
@@ -83,12 +80,27 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.command_pub.publish(msg)
 
+    def land(self):
+        """Στέλνει εντολή ομαλής προσγείωσης (αντί να αφήσουμε το PX4 σε failsafe)."""
+        self.get_logger().info(f"[{DRONE_NS}] Στέλνω εντολή ομαλής προσγείωσης (LAND)...")
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND)
+
+
 def main(args=None):
     rclpy.init(args=args)
     node = OffboardControl()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Λήφθηκε Ctrl+C, στέλνω LAND πριν τον τερματισμό...")
+        node.land()
+        # Δίνουμε λίγο χρόνο ώστε το μήνυμα LAND να σταλεί πραγματικά πριν κλείσουμε
+        for _ in range(10):
+            rclpy.spin_once(node, timeout_sec=0.1)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
