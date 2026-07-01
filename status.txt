@@ -1,2 +1,5 @@
 Το link για το best.pt:  https://drive.google.com/file/d/1tHDawBlz7mrxNmHaaKEXjEMf6CQ8JqS3/view?usp=sharing
 Το μοντέλο εκπαιδεύτηκε για 50 εποχές με imgsz=1024(τελικά). Η ανίχνευση έχει ρυθμιστεί με conf=0.5 για βέλτιστη ισορροπία μεταξύ ακρίβειας και ταχύτητας.
+
+
+***Λειπει αναλυτικο readme***
