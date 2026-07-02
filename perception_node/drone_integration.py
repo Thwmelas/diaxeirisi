@@ -48,6 +48,18 @@ def estimate_direction(box_coords, frame_width):
     else: return "right"
 
 
+
+
+def detect_fire_by_color(frame):
+    """Ανιχνεύει φωτιά με βάση πορτοκαλί/κόκκινο χρώμα (HSV)."""
+    import numpy as np
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower = np.array([5, 150, 150])
+    upper = np.array([25, 255, 255])
+    mask = cv2.inRange(hsv, lower, upper)
+    fire_pixels = cv2.countNonZero(mask)
+    return fire_pixels > 500
+
 class IntegrationNode(Node):
     def __init__(self):
         super().__init__('drone_integration')
@@ -93,6 +105,29 @@ def main():
             if (now - last_detect) < DETECT_INTERVAL_SEC:
                 continue
             last_detect = now
+
+
+            # --- Fire Detection (color-based) ---
+            if detect_fire_by_color(frame):
+                x, y, z = node.position
+                print(f"[{time.strftime('%H:%M:%S')}] FIRE DETECTED (color)! Sending CRITICAL alert...")
+                llm_input = {
+                    "drone_id": DRONE_ID,
+                    "object": "fire",
+                    "distance": 5.0,
+                    "direction": "front",
+                    "confidence": 0.95,
+                    "location": [round(x, 2), round(y, 2), round(z, 2)]
+                }
+                decision = interpret_drone_message(llm_input)
+                print(f"[{time.strftime('%H:%M:%S')}] LLM: risk={decision.get('risk_level')} action={decision.get('action')}")
+                send_drone_alert(
+                    drone_id=DRONE_ID,
+                    object_name="fire",
+                    coordinates=[round(x, 2), round(y, 2), round(z, 2)],
+                    size=[2.0, 2.0]
+                )
+                print(f"[{time.strftime('%H:%M:%S')}] MQTT CRITICAL alert sent.")
 
             h, w = frame.shape[:2]
             results = model.predict(source=frame, imgsz=1024, conf=0.5, verbose=False)

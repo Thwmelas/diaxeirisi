@@ -1,3 +1,5 @@
+import os
+import os
 import rclpy
 import math
 import random
@@ -7,7 +9,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from px4_msgs.msg import (OffboardControlMode, TrajectorySetpoint,
                            VehicleCommand, VehicleLocalPosition)
 
-DRONE_NS = "px4_1"
+DRONE_NS = os.environ.get("PATROL_DRONE_ID", "px4_1")
 TARGET_SYSTEM_ID = int(DRONE_NS.split("_")[1]) + 1
 
 TAKEOFF_HEIGHT  = -5.0    # μέτρα (NED)

@@ -170,7 +170,7 @@
     <!-- ================= Fire placeholders ================= -->
     <model name="fire_1">
       <static>true</static>
-      <pose>0 -45 0 0 0 0</pose>
+      <pose>4 4 0 0 0 0</pose>
       <link name="link">
         <visual name="flame_base"><geometry><sphere><radius>0.6</radius></sphere></geometry><pose>0 0 0.5 0 0 0</pose><material><ambient>1 0.3 0 1</ambient><diffuse>1 0.3 0 1</diffuse><emissive>1 0.4 0 1</emissive></material></visual>
         <visual name="flame_top"><geometry><sphere><radius>0.35</radius></sphere></geometry><pose>0 0 1.1 0 0 0</pose><material><ambient>1 0.6 0 1</ambient><diffuse>1 0.6 0 1</diffuse><emissive>1 0.6 0 1</emissive></material></visual>
@@ -178,7 +178,7 @@
     </model>
     <model name="fire_2">
       <static>true</static>
-      <pose>6 -48 0 0 0 0</pose>
+      <pose>-4 6 0 0 0 0</pose>
       <link name="link">
         <visual name="flame_base"><geometry><sphere><radius>0.5</radius></sphere></geometry><pose>0 0 0.45 0 0 0</pose><material><ambient>1 0.3 0 1</ambient><diffuse>1 0.3 0 1</diffuse><emissive>1 0.4 0 1</emissive></material></visual>
       </link>
