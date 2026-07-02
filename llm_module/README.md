@@ -1,87 +1,61 @@
 # LLM Decision-Making Module
 
-Αυτός ο φάκελος είναι η υλοποίηση του δικού μου μέρους: **LLM-based Inter-Drone Communication & Decision-Making**.
+This module is the LLM / decision-making part of the drone swarm project.
 
-Το module δέχεται structured μηνύματα από drones, τα ερμηνεύει και επιστρέφει απόφαση σε JSON μορφή.
+It receives MQTT alerts produced by the perception/YOLO pipeline and returns a structured decision in JSON format.
 
-## Input example
+## Input example from MQTT
 
 ```json
 {
   "drone_id": "drone_1",
-  "object": "tree",
-  "distance": 8,
-  "direction": "front",
-  "confidence": 0.89,
-  "location": [34.5, -118.2, 15.0]
+  "object": "fire",
+  "location": [120, 80, 420, 500],
+  "size": [300, 420],
+  "velocity": [0, 0, 0]
 }
 ```
+
+The module also supports older/classic messages with `distance`, `direction` and `confidence`.
 
 ## Output example
 
 ```json
 {
   "risk_level": "high",
-  "action": "avoid_obstacle",
-  "recommendation": "Obstacle close at front. Reduce speed and change course.",
+  "action": "notify_swarm",
+  "recommendation": "fire detected. Notify the swarm and send one drone to inspect the area.",
   "broadcast": true,
-  "target_drone": "all"
+  "target_drone": "all",
+  "decision_source": "rule_based_fallback"
 }
 ```
 
-## Files
+## How it connects to MQTT
+
+`communication_node/llm_decision_node.py` listens to:
 
 ```text
-llm_decision_module/
-├── llm_decision.py
-├── rule_based_fallback.py
-├── test_scenarios.py
-├── mqtt_integration_example.py
-├── optional_hf_client.py
-├── drone_llm_examples.jsonl
-├── requirements.txt
-└── README.md
+drones/+/obstacles
 ```
 
-## How to run
+and publishes decisions to:
+
+```text
+swarm/decisions
+```
+
+## Why fallback is used
+
+A real LLM can be slow or unavailable during a live demo. The rule-based fallback guarantees that the module always returns valid JSON and the system keeps working.
+
+## How to test locally
 
 ```bash
-python test_scenarios.py
+cd communication_node/llm_module
+python3 test_scenarios.py
 ```
 
-## How another teammate can use it
+## Presentation explanation
 
-```python
-from llm_decision import interpret_drone_message
-
-message = {
-    "drone_id": "drone_1",
-    "object": "tree",
-    "distance": 8,
-    "direction": "front",
-    "confidence": 0.89
-}
-
-decision = interpret_drone_message(message)
-print(decision)
-```
-
-## MQTT connection
-
-The MQTT teammate can pass received messages directly to this module:
-
-```python
-import json
-from llm_decision import interpret_drone_message
-
-data = json.loads(msg.payload.decode("utf-8"))
-decision = interpret_drone_message(data)
-```
-
-## Why fallback exists
-
-A real LLM can be slow, unavailable, or return invalid JSON. The fallback makes sure the system always returns a valid and safe decision.
-
-## Presentation text
-
-Το δικό μου κομμάτι είναι το LLM-based decision-making module. Το module λαμβάνει μηνύματα από drones σε JSON μορφή, όπως το αντικείμενο που εντοπίστηκε, την απόσταση, την κατεύθυνση και το confidence score. Στη συνέχεια, το μήνυμα μετατρέπεται σε prompt για LLM και το σύστημα επιστρέφει απόφαση σε JSON μορφή με risk level, action, recommendation και broadcast flag. Για λόγους αξιοπιστίας υλοποιήθηκε και rule-based fallback, ώστε το σύστημα να συνεχίζει να λειτουργεί ακόμη και αν το LLM δεν απαντήσει σωστά. Έτσι το module είναι έτοιμο για σύνδεση με το MQTT και το υπόλοιπο drone swarm pipeline.
+My module receives structured detection messages from the MQTT communication layer, normalizes the input, evaluates the situation and returns a decision in JSON format. The decision includes risk level, action, recommendation and whether the alert should be broadcast to the swarm.
