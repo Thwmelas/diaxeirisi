@@ -1,7 +1,0 @@
-* Έγινε το αρχικό setup και η ενσωμάτωση του llm_module στο project.  
-* Ρυθμίστηκαν dependencies και development environment για τις AI λειτουργίες.
-* Οργανώθηκε το repository structure και το workflow των feature branches για πιο smooth ανάπτυξη.
-* Προχώρησε το UI integration για AI-assisted features μέσα στην εφαρμογή.
-* Υλοποιείται η σύνδεση backend ↔ LLM και η διαχείριση API calls/responses.
-* Γίνονται tests για stability, response handling και καλύτερο error management.
-* Επόμενο focus: optimization, integration testing και προετοιμασία για production deployment.
