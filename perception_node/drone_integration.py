@@ -1,18 +1,19 @@
+"""
+drone_integration.py - Πλήρης σύνδεσμος: Camera -> YOLO -> LLM -> MQTT
+"""
+
 import sys
 import time
 import cv2
+import math
 
-# YOLO module  
-sys.path.insert(0, '/home/sdi2300104/drone_ws/perception_node')
-from yolo_vision import detect_objects
-
-# LLM module 
 sys.path.insert(0, '/home/sdi2300104/drone_ws/communication_node/llm_module')
 from llm_decision import interpret_drone_message
 
-# MQTT publisher 
 sys.path.insert(0, '/home/sdi2300104/mqtt_test')
 from publisher import send_drone_alert
+
+from ultralytics import YOLO
 
 import rclpy
 from rclpy.node import Node
@@ -21,52 +22,37 @@ from px4_msgs.msg import VehicleLocalPosition
 
 DRONE_ID = "px4_1"
 CAMERA_PORT = 5601
-DETECT_INTERVAL_SEC = 3  # κάθε 3 δευτερόλεπτα 
+DETECT_INTERVAL_SEC = 3
 
-# Κατηγορίες που ενδιαφέρουν 
 RELEVANT_CLASSES = {"person", "car", "bus", "boat", "building", "tree",
-                    "fire", "drone", "airplane", "vehicle", "smoke"}
+                    "fire", "drone", "airplane", "vehicle", "smoke",
+                    "heavy_vehicle", "light_vehicles", "planes"}
+
+# Φόρτωση μοντέλου μία φορά
+model = YOLO('/home/sdi2300104/drone_ws/perception_node/best.pt')
 
 
 def estimate_distance(box_coords, frame_height):
-    """
-    Εκτιμά απόσταση από το ύψος του bounding box σε pixels.
-    Πολύ κοντά: box_height > 50% frame → ~3m
-    Κοντά:      box_height > 20% frame → ~8m
-    Μακριά:     box_height < 20% frame → ~20m
-    """
     x1, y1, x2, y2 = box_coords
-    box_height = y2 - y1
-    ratio = box_height / frame_height if frame_height > 0 else 0
-
-    if ratio > 0.5:
-        return 3.0
-    elif ratio > 0.2:
-        return 8.0
-    else:
-        return 20.0
+    ratio = (y2 - y1) / frame_height if frame_height > 0 else 0
+    if ratio > 0.5: return 3.0
+    elif ratio > 0.2: return 8.0
+    else: return 20.0
 
 
 def estimate_direction(box_coords, frame_width):
-    """Εκτιμά κατεύθυνση από οριζόντια θέση του bounding box στο frame."""
     x1, _, x2, _ = box_coords
-    center_x = (x1 + x2) / 2
-    ratio = center_x / frame_width if frame_width > 0 else 0.5
-
-    if ratio < 0.33:
-        return "left"
-    elif ratio < 0.66:
-        return "front"
-    else:
-        return "right"
+    ratio = ((x1 + x2) / 2) / frame_width if frame_width > 0 else 0.5
+    if ratio < 0.33: return "left"
+    elif ratio < 0.66: return "front"
+    else: return "right"
 
 
 class IntegrationNode(Node):
     def __init__(self):
         super().__init__('drone_integration')
         self.position = (0.0, 0.0, 0.0)
-
-        qos_profile = QoSProfile(
+        qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
@@ -75,12 +61,9 @@ class IntegrationNode(Node):
         self.create_subscription(
             VehicleLocalPosition,
             f'/{DRONE_ID}/fmu/out/vehicle_local_position',
-            self._position_callback,
-            qos_profile
+            lambda msg: setattr(self, 'position', (msg.x, msg.y, -msg.z)),
+            qos
         )
-
-    def _position_callback(self, msg):
-        self.position = (msg.x, msg.y, -msg.z)
 
 
 def main():
@@ -95,8 +78,8 @@ def main():
         print(f"ERROR: δεν άνοιξε το camera stream στο port {CAMERA_PORT}")
         return
 
-    print(f"Integration node ξεκίνησε για {DRONE_ID}.")
-    print(f"Camera: port {CAMERA_PORT} | YOLO: imgsz=1024 conf=0.5 | Interval: {DETECT_INTERVAL_SEC}s")
+    print(f"Integration node      px4_1 (port {CAMERA_PORT}).")
+    print(f"   fake detections   {DETECT_INTERVAL_SEC}   . Ctrl+C   stop.")
 
     last_detect = 0
     try:
@@ -111,24 +94,16 @@ def main():
                 continue
             last_detect = now
 
-            # --- YOLO Detection ---
-            annotated = detect_objects(frame)
             h, w = frame.shape[:2]
-
-            
-
-            results = _model.predict(
-                source=frame, imgsz=1024, conf=0.25, verbose=False)
+            results = model.predict(source=frame, imgsz=1024, conf=0.5, verbose=False)
 
             if not results or len(results[0].boxes) == 0:
-                print(f"[{time.strftime('%H:%M:%S')}] Δεν εντοπίστηκε τίποτα.")
+                print(f"[{time.strftime('%H:%M:%S')}] No detections.")
                 continue
 
-            # Πάρε το box με το μεγαλύτερο confidence
-            best_box = max(results[0].boxes,
-                           key=lambda b: b.conf[0].item())
+            best_box = max(results[0].boxes, key=lambda b: b.conf[0].item())
             class_id = int(best_box.cls[0].item())
-            class_name = _model.names[class_id]
+            class_name = model.names[class_id]
             confidence = best_box.conf[0].item()
             coords = best_box.xyxy[0].tolist()
 
@@ -139,7 +114,6 @@ def main():
             print(f"[{time.strftime('%H:%M:%S')}] YOLO: {class_name} "
                   f"conf={confidence:.2f} dist≈{distance}m dir={direction}")
 
-            # --- LLM Decision ---
             llm_input = {
                 "drone_id": DRONE_ID,
                 "object": class_name,
@@ -153,7 +127,6 @@ def main():
                   f"risk={decision.get('risk_level')} "
                   f"action={decision.get('action')}")
 
-            # --- MQTT Alert ---
             if class_name in RELEVANT_CLASSES:
                 send_drone_alert(
                     drone_id=DRONE_ID,
