@@ -1,10 +1,21 @@
 """Rule-based fallback for the LLM Decision-Making Module.
 
-This fallback is used when a real LLM is not connected or when the LLM
-returns invalid output. It keeps the demo deterministic and safe.
+Used when a real LLM is not connected or returns invalid output, and as the
+reference for the safety layer (safety.py). Keeps the demo deterministic and safe.
+
+Order of checks matters: distance (collision) is checked BEFORE confidence,
+so a very close object is never ignored just because YOLO was unsure.
 """
 from __future__ import annotations
+
 from typing import Any, Dict, Optional
+
+EMERGENCY_DISTANCE_M = 5.0
+CLOSE_DISTANCE_M = 10.0
+LOW_CONFIDENCE = 0.50
+
+HAZARDS = {"fire", "smoke"}
+OBSTACLES = {"tree", "building", "car", "vehicle", "truck", "bus", "boat", "airplane", "drone"}
 
 
 def _to_float(value: Any) -> Optional[float]:
@@ -17,25 +28,14 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 def rule_based_decision(message: Dict[str, Any]) -> Dict[str, Any]:
-    obj = str(message.get("object", "unknown")).lower().strip()
-    direction = str(message.get("direction", "unknown")).lower().strip()
+    obj = str(message.get("object") or "unknown").lower().strip()
+    direction = str(message.get("direction") or "unknown").lower().strip()
     distance = _to_float(message.get("distance"))
     confidence = _to_float(message.get("confidence"))
 
-    # If YOLO sends confidence and it is low, ask for verification.
-    # If confidence is missing, we do not treat it as low confidence.
-    if confidence is not None and confidence < 0.50:
-        return {
-            "risk_level": "low",
-            "action": "verify_detection",
-            "recommendation": "Detection confidence is low. Request confirmation from nearby drones.",
-            "broadcast": True,
-            "target_drone": "all",
-        }
-
-    # If distance exists, use it for safety decisions.
+    # 1. Collision risk first: a close object is dangerous whatever YOLO's confidence.
     if distance is not None:
-        if distance <= 5:
+        if distance <= EMERGENCY_DISTANCE_M:
             return {
                 "risk_level": "high",
                 "action": "emergency_stop",
@@ -43,7 +43,7 @@ def rule_based_decision(message: Dict[str, Any]) -> Dict[str, Any]:
                 "broadcast": True,
                 "target_drone": "all",
             }
-        if distance <= 10:
+        if distance <= CLOSE_DISTANCE_M:
             return {
                 "risk_level": "high",
                 "action": "avoid_obstacle",
@@ -52,8 +52,19 @@ def rule_based_decision(message: Dict[str, Any]) -> Dict[str, Any]:
                 "target_drone": "all",
             }
 
-    # Object-based decision when distance is not available from the current pipeline.
-    if obj in {"fire", "smoke"}:
+    # 2. If YOLO sends confidence and it is low, ask for verification.
+    #    Missing confidence is NOT treated as low confidence.
+    if confidence is not None and confidence < LOW_CONFIDENCE:
+        return {
+            "risk_level": "low",
+            "action": "verify_detection",
+            "recommendation": "Detection confidence is low. Request confirmation from nearby drones.",
+            "broadcast": True,
+            "target_drone": "all",
+        }
+
+    # 3. Object-based decision (the current MQTT pipeline has no distance).
+    if obj in HAZARDS:
         return {
             "risk_level": "high",
             "action": "notify_swarm",
@@ -71,7 +82,7 @@ def rule_based_decision(message: Dict[str, Any]) -> Dict[str, Any]:
             "target_drone": "all",
         }
 
-    if obj in {"tree", "building", "car", "vehicle", "boat", "airplane", "drone"}:
+    if obj in OBSTACLES:
         return {
             "risk_level": "medium",
             "action": "update_awareness_map",

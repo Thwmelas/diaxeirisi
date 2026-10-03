@@ -5,11 +5,18 @@ It listens to obstacle alerts from drones and publishes decision JSON.
 
 Run:
     cd communication_node
-    python3 llm_decision_node.py
+    python3 llm_decision_node.py                 # rules only (stable demo)
+    python3 llm_decision_node.py --llm           # local LLM via Ollama + safety layer
+    python3 llm_decision_node.py --llm --model qwen2.5:3b
+
+The node remembers the latest alerts from ALL drones, so with --llm the model
+can see whether other drones reported the same thing nearby.
 """
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -21,7 +28,7 @@ import paho.mqtt.client as mqtt
 LLM_MODULE_PATH = Path(__file__).resolve().parent / "llm_module"
 sys.path.insert(0, str(LLM_MODULE_PATH))
 
-from llm_decision import LLMDecisionMaker  # noqa: E402
+from llm_decision import LLMDecisionMaker, llm_enabled_from_env  # noqa: E402
 
 BROKER = "localhost"
 PORT = 1883
@@ -29,7 +36,7 @@ ALERT_TOPIC = "drones/+/obstacles"
 DECISION_TOPIC = "swarm/decisions"
 LOG_FILE = Path(__file__).resolve().parent / "decisions.log"
 
-decision_maker = LLMDecisionMaker(drone_id="llm_decision_node", use_llm=False, keep_history=True)
+decision_maker: LLMDecisionMaker | None = None  # created in main()
 
 
 def log_decision(decision: dict[str, Any]) -> None:
@@ -71,11 +78,34 @@ def on_message(client, userdata, msg):
         f"object={decision['detected_object']} "
         f"risk={decision['risk_level']} "
         f"action={decision['action']} "
+        f"source={decision['decision_source']} "
         f"-> published to {DECISION_TOPIC}"
     )
+    if "safety_overrides" in decision:
+        print(f"[LLM Decision]   safety layer corrected the LLM: {decision['safety_overrides']}")
+    if "fallback_reason" in decision:
+        print(f"[LLM Decision]   LLM not used: {decision['fallback_reason']}")
 
 
 def main() -> None:
+    global decision_maker
+    parser = argparse.ArgumentParser(description="MQTT -> LLM decision -> MQTT")
+    parser.add_argument("--llm", action="store_true", help="use the local LLM (Ollama); default: rules only")
+    parser.add_argument("--model", default=None, help="Ollama model name (default llama3.2:3b)")
+    args = parser.parse_args()
+
+    if args.model:
+        os.environ["OLLAMA_MODEL"] = args.model
+    use_llm = args.llm or llm_enabled_from_env()
+    decision_maker = LLMDecisionMaker(drone_id="llm_decision_node", use_llm=use_llm, keep_history=True)
+
+    if use_llm:
+        llm = decision_maker.llm_client
+        status = "ready" if llm.is_available() else "NOT available, rules will be used until it is"
+        print(f"[LLM Node] LLM mode: {llm.name} ({status})")
+    else:
+        print("[LLM Node] Rule-based mode (start with --llm to use the LLM)")
+
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
