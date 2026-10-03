@@ -40,6 +40,14 @@ DECISION_JSON_SCHEMA = {
     "required": list(REQUIRED_FIELDS),
 }
 
+def decision_schema(allowed_actions=None):
+    """JSON schema for one request, restricting the action enum to allowed_actions."""
+    schema = json.loads(json.dumps(DECISION_JSON_SCHEMA))
+    if allowed_actions:
+        schema["properties"]["action"]["enum"] = list(allowed_actions)
+    return schema
+
+
 _TARGET_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 
 

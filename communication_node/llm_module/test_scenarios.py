@@ -22,6 +22,8 @@ def run(use_llm: bool, model: str | None = None) -> None:
             client.model = model
         if not client.is_available():
             print(f"[warning] {client.name} not available -> decisions fall back to rules.\n")
+        else:
+            client.warm_up()
 
     passed = 0
     for sc in SCENARIOS:

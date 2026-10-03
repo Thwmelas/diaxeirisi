@@ -18,6 +18,7 @@ Enable the LLM without changing code:
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import time
@@ -26,8 +27,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from rule_based_fallback import rule_based_decision
-from safety import apply_safety_override
-from schema import ACTIONS, DECISION_JSON_SCHEMA, parse_and_validate
+from safety import allowed_actions, apply_safety_override
+from schema import ACTIONS, DECISION_JSON_SCHEMA, decision_schema, parse_and_validate
 from swarm_context import summarize_history
 
 Decision = Dict[str, Any]
@@ -75,12 +76,14 @@ class LLMDecisionMaker:
 
         # Prompt is built BEFORE adding the current message to history,
         # so the history section only contains earlier reports.
-        prompt = self.build_prompt(normalized)
+        previous = list(self.history)
+        allowed = allowed_actions(normalized)
+        prompt = self.build_prompt(normalized, allowed)
         self._remember(normalized)
 
         start = time.perf_counter()
         try:
-            raw_response = self.llm_client(prompt)
+            raw_response = self._call_llm(prompt, decision_schema(allowed))
             validated = self.validate_decision(self.parse_llm_json(raw_response))
         except Exception as exc:
             fallback = rule_based_decision(normalized)
@@ -88,14 +91,23 @@ class LLMDecisionMaker:
             return self._with_metadata(fallback, "rule_based_fallback")
         latency_ms = round((time.perf_counter() - start) * 1000, 1)
 
-        final, overrides = apply_safety_override(normalized, validated)
+        final, overrides = apply_safety_override(normalized, validated, previous)
         if overrides:
             final["safety_overrides"] = overrides
         final["llm_latency_ms"] = latency_ms
         return self._with_metadata(final, "llm+safety" if overrides else "llm")
 
-    def build_prompt(self, message: DroneMessage) -> str:
-        actions = "\n".join(f"- {name}: {desc}" for name, desc in ACTIONS.items())
+    def _call_llm(self, prompt: str, schema: Dict[str, Any]) -> str:
+        """Pass the per-message schema if the client supports it (OllamaClient does)."""
+        try:
+            accepts_schema = "schema" in inspect.signature(self.llm_client).parameters
+        except (TypeError, ValueError):
+            accepts_schema = False
+        return self.llm_client(prompt, schema=schema) if accepts_schema else self.llm_client(prompt)
+
+    def build_prompt(self, message: DroneMessage, allowed: Optional[List[str]] = None) -> str:
+        allowed = allowed or list(ACTIONS)
+        actions = "\n".join(f"- {name}: {ACTIONS[name]}" for name in allowed)
         current = {k: message.get(k) for k in PROMPT_FIELDS if message.get(k) is not None}
         history_text = summarize_history(self.history, message) if self.keep_history else "Not available."
         return f"""
@@ -103,19 +115,21 @@ You are the decision-making module of an autonomous drone swarm.
 YOLO detects objects in drone camera frames; MQTT carries only processed JSON, not images.
 Decide how the swarm should react to the current report. Return ONLY one JSON object.
 
-Allowed actions:
+Allowed actions for THIS report (choose one):
 {actions}
 
 Guidelines:
-- distance <= 5 m: risk "high", action "emergency_stop".
-- distance <= 10 m: risk "high", action "avoid_obstacle" (or "emergency_stop").
-- fire or smoke: risk "high", broadcast true.
+- emergency_stop / avoid_obstacle are ONLY for objects closer than 10 m. A far or
+  unknown distance is never a collision.
+- fire or smoke: risk "high", broadcast true, usually "notify_swarm".
 - person: risk "high", usually "track_person".
 - confidence < 0.50 means an uncertain detection: prefer "verify_detection",
   UNLESS other drones recently reported the same object nearby (that confirms it).
 - Missing distance or confidence is normal (not every sensor sends them); do not treat it as danger.
-- Use the recent reports: several drones reporting the same hazard close together
-  confirms it and may justify "hover_and_monitor" or "notify_swarm".
+- Use the recent reports: if OTHER drones reported the same kind of object close by,
+  the detection is confirmed -> treat it as reliable (fire/smoke -> high + notify_swarm,
+  person -> high + track_person). Unrelated reports do not change anything.
+- Ordinary objects (tree, car, bus, building) far away are low/medium risk.
 - target_drone: "all" to alert everyone, a drone id (e.g. "drone_2") to address one drone, "none" if no message is needed.
 - recommendation: one short imperative sentence, max 20 words.
 

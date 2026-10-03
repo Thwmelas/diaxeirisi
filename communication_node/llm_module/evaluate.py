@@ -95,6 +95,8 @@ def main():
         if not client.is_available():
             print(f"[skip] {client.name}: Ollama not running or model not pulled (ollama pull {model})")
             continue
+        print(f"Loading {client.name} into memory (warm-up) ...")
+        client.warm_up()
         print(f"Evaluating {client.name} ...")
         results.append(run_engine(client.name, client))
 

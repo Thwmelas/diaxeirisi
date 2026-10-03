@@ -40,13 +40,14 @@ class OllamaClient:
     def name(self) -> str:
         return f"ollama:{self.model}"
 
-    def __call__(self, prompt: str) -> str:
+    def __call__(self, prompt: str, schema: Optional[Dict[str, Any]] = None) -> str:
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
-            "format": self.json_schema or "json",
+            "format": schema or self.json_schema or "json",
             "options": {"temperature": self.temperature, "num_predict": self.max_tokens},
+            "keep_alive": "30m",  # keep the model in memory between decisions
         }
         request = urllib.request.Request(
             f"{self.url}/api/chat",
@@ -66,6 +67,17 @@ class OllamaClient:
             return body["message"]["content"]
         except (KeyError, TypeError) as exc:
             raise LLMUnavailable(f"Unexpected Ollama response: {str(body)[:200]}") from exc
+
+    def warm_up(self) -> bool:
+        """Load the model into memory (the first call can take 10-20 s)."""
+        old_timeout, self.timeout = self.timeout, max(self.timeout, 120.0)
+        try:
+            self('Reply with {"ok": true}')
+            return True
+        except LLMUnavailable:
+            return False
+        finally:
+            self.timeout = old_timeout
 
     def is_available(self) -> bool:
         """True if the server is up and the model has been pulled."""

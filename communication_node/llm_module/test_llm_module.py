@@ -137,13 +137,51 @@ def test_safety_corrects_unsafe_llm():
     d = LLMDecisionMaker(use_llm=True, llm_client=FakeLLM(reply())).interpret(TREE_8M)
     assert d["decision_source"] == "llm+safety"
     assert (d["risk_level"], d["action"], d["broadcast"], d["target_drone"]) == ("high", "avoid_obstacle", True, "all")
-    assert "collision_action" in d["safety_overrides"]
+    assert "action_not_allowed" in d["safety_overrides"]
 
 
-def test_safety_allows_escalation():
-    msg = {"object": "car", "distance": 40, "confidence": 0.35}
-    final, overrides = apply_safety_override(msg, parse_and_validate(reply("high", "hover_and_monitor", "Watch.", True, "all")))
+def test_escalation_without_evidence_is_blocked():
+    # The real llama3.2:3b failure: emergency_stop / high for a car 40 m away.
+    msg = {"drone_id": "drone_1", "object": "car", "distance": 40, "confidence": 0.35}
+    final, overrides = apply_safety_override(msg, parse_and_validate(reply("high", "emergency_stop", "Stop.", True, "all")))
+    assert final["risk_level"] == "low" and final["action"] == "verify_detection"
+    assert {"action_not_allowed", "unsupported_escalation"} <= set(overrides)
+
+
+def test_escalation_with_swarm_evidence_is_allowed():
+    msg = {"drone_id": "drone_1", "object": "fire", "confidence": 0.4, "location": [10, 3, 10]}
+    history = [{"drone_id": "drone_2", "object": "smoke", "confidence": 0.85, "location": [12, 4, 10]}]
+    final, overrides = apply_safety_override(msg, parse_and_validate(reply("high", "notify_swarm", "Fire confirmed.", True, "all")), history)
     assert overrides == [] and final["risk_level"] == "high"
+
+
+def test_far_or_same_drone_reports_are_not_evidence():
+    from safety import has_swarm_evidence
+    msg = {"drone_id": "drone_1", "object": "fire", "location": [0, 0, 10]}
+    assert not has_swarm_evidence(msg, [{"drone_id": "drone_2", "object": "fire", "location": [200, 0, 10]}])
+    assert not has_swarm_evidence(msg, [{"drone_id": "drone_1", "object": "fire", "location": [1, 0, 10]}])
+    assert not has_swarm_evidence(msg, [{"drone_id": "drone_2", "object": "fire", "confidence": 0.2}])
+
+
+def test_allowed_actions():
+    from safety import allowed_actions
+    assert allowed_actions({"object": "car", "distance": 3}) == ["emergency_stop"]
+    assert set(allowed_actions({"object": "car", "distance": 8})) == {"emergency_stop", "avoid_obstacle"}
+    far_fire = allowed_actions({"object": "fire"})
+    assert "emergency_stop" not in far_fire and "continue_mission" not in far_fire and "track_person" not in far_fire
+    assert "track_person" in allowed_actions({"object": "person", "distance": 30})
+    assert "track_person" not in allowed_actions({"object": "kite"})
+
+
+def test_schema_sent_to_ollama_has_only_allowed_actions():
+    llm = FakeLLM(reply("high", "notify_swarm", "x", True, "all"))
+    seen = {}
+    def client(prompt, schema=None):
+        seen["schema"] = schema
+        return llm(prompt)
+    LLMDecisionMaker(use_llm=True, llm_client=client).interpret(MQTT_FIRE)
+    assert "emergency_stop" not in seen["schema"]["properties"]["action"]["enum"]
+    assert "notify_swarm" in seen["schema"]["properties"]["action"]["enum"]
 
 
 def test_fire_is_always_broadcast():
@@ -211,7 +249,8 @@ def test_ollama_roundtrip(fake_ollama):
     assert client.is_available()
     d = LLMDecisionMaker(use_llm=True, llm_client=client).interpret(MQTT_FIRE)
     assert d["decision_source"] == "llm"
-    assert received["stream"] is False and received["format"] == {"type": "object"}
+    assert received["stream"] is False and received["keep_alive"] == "30m"
+    assert "emergency_stop" not in received["format"]["properties"]["action"]["enum"]
 
 
 def test_ollama_unreachable():

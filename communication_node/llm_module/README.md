@@ -110,11 +110,24 @@ The rules fail only where another drone's report changes the right answer
 (e.g. an uncertain fire detection that two nearby drones already confirmed).
 This is the gap the LLM closes. Run `evaluate.py` to add the LLM rows.
 
+### Lesson from the first LLM evaluation
+
+With only output validation, both 3B models scored **71%**, worse than the rules:
+llama3.2:3b asked for `emergency_stop` when nothing was close (e.g. a car 40 m away), qwen2.5:3b
+answered `continue_mission` for smoke and `track_person` for a kite. Both still solved some of the
+swarm-confirmation cases the rules miss. This led to the guardrails above (allowed actions per message,
+evidence-gated escalation). Replaying the same model answers through the guardrails gives 16/17 for
+both models. Small LLMs are useful for context reasoning but must be constrained.
+
 ## Design choices
 
 - **Hybrid LLM + rules**: the LLM reasons over swarm context; the rules guarantee predictable, safe behaviour.
-- **The LLM can escalate, never downgrade**: e.g. an obstacle at 4 m is always `emergency_stop`, whatever the LLM says.
-  Every correction is logged in `safety_overrides`.
+- **Allowed actions per message**: only actions that make sense for the input are offered to the LLM
+  and sent to Ollama as the schema enum (e.g. `emergency_stop` only if an object is closer than 10 m,
+  `track_person` only for a person), so the model cannot even generate the others.
+- **The LLM never weakens a hard rule**: an obstacle at 4 m is always `emergency_stop`, fire is always broadcast.
+- **Escalation needs evidence**: the LLM may raise risk above the rules only if another drone recently
+  reported the same kind of object within 50 m. Every correction is logged in `safety_overrides`.
 - **Structured output**: a JSON schema is sent to Ollama and the answer is validated again in Python
   (closed set of actions, real booleans, valid `target_drone`).
 - **Distance before confidence**: a close object is never ignored because YOLO was unsure.

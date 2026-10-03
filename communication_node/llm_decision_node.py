@@ -101,8 +101,12 @@ def main() -> None:
 
     if use_llm:
         llm = decision_maker.llm_client
-        status = "ready" if llm.is_available() else "NOT available, rules will be used until it is"
-        print(f"[LLM Node] LLM mode: {llm.name} ({status})")
+        if llm.is_available():
+            print(f"[LLM Node] LLM mode: {llm.name} - loading model into memory...")
+            llm.warm_up()
+            print("[LLM Node] LLM ready")
+        else:
+            print(f"[LLM Node] LLM mode: {llm.name} NOT available, rules will be used until it is")
     else:
         print("[LLM Node] Rule-based mode (start with --llm to use the LLM)")
 
