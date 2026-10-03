@@ -31,7 +31,7 @@ The training of the model was conducted progressively through multiple experimen
 
 ## Evaluation & Performance Metrics
 
-By applying the continuous fine-tuning strategy, we produced the final optimal model (best.pt). As demonstrated by the evaluation results, the model achieved an overall mAP50 accuracy of 65.3% (0.653) and a Precision of 73.3% across a total of 42,190 detected instances.
+By applying the continuous fine-tuning strategy, we produced the final optimal model (best.pt). As demonstrated by the evaluation results, the model achieved an overall mAP50 accuracy of 65.3% (0.653), a Precision of 73.3% and a Recall of 61.7% across a total of 42,190 detected instances..
 The initial hypothesis regarding high performance on classes with distinct environmental backgrounds was fully confirmed, as the model recorded exceptional performance on the planes (mAP50: 89.7%), car (mAP50: 85.4%), tree (mAP50: 81.7%), and boat (mAP50: 81.5%) classes. Conversely, classes featuring smaller or visually complex objects (such as light_vehicles and heavy_vehicle) performed at lower levels (mAP50 around 43%).
 
 ## Inference Speed: imgsz 640 vs 1024 
