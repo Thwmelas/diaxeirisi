@@ -42,6 +42,8 @@ Video	imgsz 1024 (ms/frame)	imgsz 640 (ms/frame)
 drone1.mp4		304 155
 drone2.mp4	261 144
 
+Although imgsz=1024 is better at detecting small or distant objects, imgsz=640 is much faster on the CPU (~6-7 FPS). Because speed is very important for the drone to fly in real-time, we accept a slight drop in accuracy and recommend setting IMGSZ=640.
+
 ## Description of Evaluation Attachments
 (All evaluation plots and prediction images listed below are located in a separate folder)
 labels.jpg: Illustrates exactly how many instances each class contains and shows the spatial distribution of objects across the dataset images.
