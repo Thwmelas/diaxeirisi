@@ -55,7 +55,19 @@ Video	imgsz 1024 (ms/frame)	imgsz 640 (ms/frame)
 drone1.mp4		304 155
 drone2.mp4	261 144
 
-Although imgsz=1024 is better at detecting small or distant objects, imgsz=640 is much faster on the CPU (~6-7 FPS). Because speed is very important for the drone to fly in real-time, we accept a slight drop in accuracy and recommend setting IMGSZ=640.
+We kept imgsz 1024 as the final input resolution. Although imgsz 640 was about 1.9 times
+faster on the CPU , in our tests on the demo videos it missed noticeably more objects than imgsz 1024. This is explained by the following factors:
+1. Consistency with training: The model was trained at imgsz 1024, so running inference at the same resolution preserves the object scale it learned during training.
+
+2. Small objects in aerial images: Objects seen from a drone, such as people and vehicles, occupy only a few pixels. Reducing the resolution to 640 makes them even
+   smaller and increases the risk of missed detections.
+
+3. Protecting the weaker classes: Light vehicles and heavy vehicles already have the lowest mAP50 (around 43%), so they are the most sensitive to a lower resolution.
+
+4. Accuracy over speed: A fast detector that misses many objects gives the drone an incomplete view of its environment. Since the drone moves relatively slowly, the same
+   object appears in many consecutive frames, so ≈ 3.5 FPS on the CPU is acceptable.
+
+
 
 ## Description of Evaluation Attachments
 (All evaluation plots and prediction images listed below are located in a separate folder)
