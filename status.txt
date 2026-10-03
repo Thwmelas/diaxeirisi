@@ -3,6 +3,19 @@
 
 
 # YOLO-Object detection
+## Setup (Ubuntu / WSL)
+A virtual environment is required, because Ubuntu 24.04 does not allow
+installing Python packages system-wide with pip.
+
+    sudo apt update
+    sudo apt install python3-pip python3-venv
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    pip install -r requirements.txt
+
+Every time a new terminal is opened, activate the environment first:
+  source venv/bin/activate
 
 ## Technical Dependencies & Framework
 The object detection pipeline is developed and executed using the Ultralytics YOLOv8 framework(pip install ultralytics) running on PyTorch (Python 3.8+) and trained at an image resolution of imgsz=1024.
