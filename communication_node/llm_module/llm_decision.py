@@ -34,8 +34,28 @@ from swarm_context import summarize_history
 Decision = Dict[str, Any]
 DroneMessage = Dict[str, Any]
 
-PROMPT_FIELDS = ("drone_id", "timestamp", "object", "distance", "direction",
-                 "confidence", "location", "size", "velocity")
+# Only the fields the model needs (location/timestamp are used in Python, not by the model).
+PROMPT_FIELDS = ("drone_id", "object", "count", "confidence", "direction", "distance")
+
+# STATIC part of the prompt. It is identical for every message, so Ollama can reuse
+# its cached computation between calls; everything that changes goes at the END.
+STATIC_PROMPT = """You are the decision module of a drone swarm. A drone's YOLO detector sends a report.
+You do not see the image: use only the report and the recent swarm reports.
+Reply with JSON only.
+
+description: one English sentence saying what the drone sees, using only the report
+(object, count, direction, distance) and the same drone's recent reports. Invent nothing.
+Example: "The drone sees a crowd of about 60 people on the left."
+
+Rules:
+- emergency_stop / avoid_obstacle only if distance <= 10 m. No distance = no collision.
+- person: high. 5 or more people = crowd -> hover_and_monitor; fewer -> track_person.
+- fire or smoke: high, notify_swarm, broadcast true.
+- vehicles, trees, buildings, boats, planes: low or medium, update_awareness_map or continue_mission.
+- confidence < 0.5: uncertain -> verify_detection, unless another nearby drone reported the same.
+- broadcast true only if other drones must react. target_drone: "all", a drone id, or "none".
+- recommendation: short command, max 12 words."""
+
 
 
 def llm_enabled_from_env() -> bool:
@@ -107,41 +127,16 @@ class LLMDecisionMaker:
 
     def build_prompt(self, message: DroneMessage, allowed: Optional[List[str]] = None) -> str:
         allowed = allowed or list(ACTIONS)
-        actions = "\n".join(f"- {name}: {ACTIONS[name]}" for name in allowed)
-        current = {k: message.get(k) for k in PROMPT_FIELDS if message.get(k) is not None}
-        history_text = summarize_history(self.history, message) if self.keep_history else "Not available."
-        return f"""
-You are the decision-making module of an autonomous drone swarm.
-YOLO detects objects in drone camera frames; MQTT carries only processed JSON, not images.
-Decide how the swarm should react to the current report. Return ONLY one JSON object.
-
-Allowed actions for THIS report (choose one):
-{actions}
-
-Guidelines:
-- emergency_stop / avoid_obstacle are ONLY for objects closer than 10 m. A far or
-  unknown distance is never a collision.
-- fire or smoke: risk "high", broadcast true, usually "notify_swarm".
-- person: risk "high", usually "track_person".
-- confidence < 0.50 means an uncertain detection: prefer "verify_detection",
-  UNLESS other drones recently reported the same object nearby (that confirms it).
-- Missing distance or confidence is normal (not every sensor sends them); do not treat it as danger.
-- Use the recent reports: if OTHER drones reported the same kind of object close by,
-  the detection is confirmed -> treat it as reliable (fire/smoke -> high + notify_swarm,
-  person -> high + track_person). Unrelated reports do not change anything.
-- Ordinary objects (tree, car, bus, building) far away are low/medium risk.
-- target_drone: "all" to alert everyone, a drone id (e.g. "drone_2") to address one drone, "none" if no message is needed.
-- recommendation: one short imperative sentence, max 20 words.
-
-Recent reports (most recent first):
-{history_text}
-
-Current report:
-{json.dumps(current)}
-
-Output format:
-{{"risk_level": "low|medium|high", "action": "<allowed action>", "recommendation": "<short command>", "broadcast": true|false, "target_drone": "all|<drone_id>|none"}}
-""".strip()
+        current = {k: message[k] for k in PROMPT_FIELDS if message.get(k) is not None}
+        if current.get("count") == 1:
+            current.pop("count")
+        history_text = summarize_history(self.history, message) if self.keep_history else "none"
+        return (
+            f"{STATIC_PROMPT}\n\n"
+            f"Recent reports:\n{history_text}\n\n"
+            f"Report: {json.dumps(current, separators=(',', ':'))}\n"
+            f"Allowed actions: {', '.join(allowed)}"
+        )
 
     @staticmethod
     def parse_llm_json(raw_response: str) -> Decision:

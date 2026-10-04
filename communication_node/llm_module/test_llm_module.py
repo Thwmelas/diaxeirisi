@@ -24,8 +24,9 @@ from schema import InvalidDecision, parse_and_validate
 from swarm_context import summarize_history
 
 
-def reply(risk="low", action="continue_mission", rec="Continue.", broadcast=False, target="none"):
-    return json.dumps({"risk_level": risk, "action": action, "recommendation": rec,
+def reply(risk="low", action="continue_mission", rec="Continue.", broadcast=False, target="none",
+          desc="The drone sees something."):
+    return json.dumps({"description": desc, "risk_level": risk, "action": action, "recommendation": rec,
                        "broadcast": broadcast, "target_drone": target})
 
 
@@ -50,7 +51,7 @@ MQTT_FIRE = {"drone_id": "drone_1", "object": "fire", "location": [120, 80, 420,
 def test_node_style_usage_unchanged():
     maker = LLMDecisionMaker(drone_id="llm_decision_node", use_llm=False, keep_history=True)
     d = maker.interpret(MQTT_FIRE)
-    for key in ("risk_level", "action", "recommendation", "broadcast", "target_drone",
+    for key in ("description", "risk_level", "action", "recommendation", "broadcast", "target_drone",
                 "decision_source", "decision_time", "module_id"):
         assert key in d
     assert d["decision_source"] == "rule_based_fallback"
@@ -93,19 +94,21 @@ def test_rules_survive_broken_input():
 # --- schema ---------------------------------------------------------------------
 
 def test_parse_with_fences_and_strings():
-    d = parse_and_validate('```json\n{"risk_level":"HIGH","action":"Notify Swarm","recommendation":"x",'
-                           '"broadcast":"false","target_drone":"drone_2"}\n```')
-    assert d == {"risk_level": "high", "action": "notify_swarm", "recommendation": "x",
+    d = parse_and_validate('```json\n{"description":" The drone   sees fire. ","risk_level":"HIGH",'
+                           '"action":"Notify Swarm","recommendation":"x","broadcast":"false","target_drone":"drone_2"}\n```')
+    assert d == {"description": "The drone sees fire.", "risk_level": "high", "action": "notify_swarm", "recommendation": "x",
                  "broadcast": False, "target_drone": "drone_2"}
 
 
 @pytest.mark.parametrize("bad", [
     "", "no json here", "[1]",
-    '{"risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true}',
-    '{"risk_level":"extreme","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all"}',
-    '{"risk_level":"high","action":"fly_to_moon","recommendation":"x","broadcast":true,"target_drone":"all"}',
-    '{"risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":"maybe","target_drone":"all"}',
-    '{"risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all drones!"}',
+    '{"risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all"}',  # no description
+    '{"description":"  ","risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all"}',
+    '{"description":"d","risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true}',
+    '{"description":"d","risk_level":"extreme","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all"}',
+    '{"description":"d","risk_level":"high","action":"fly_to_moon","recommendation":"x","broadcast":true,"target_drone":"all"}',
+    '{"description":"d","risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":"maybe","target_drone":"all"}',
+    '{"description":"d","risk_level":"high","action":"notify_swarm","recommendation":"x","broadcast":true,"target_drone":"all drones!"}',
 ])
 def test_parse_rejects_invalid(bad):
     with pytest.raises(InvalidDecision):
@@ -198,9 +201,10 @@ def test_history_reaches_prompt_without_current_message():
     for m in sc["context"]:
         maker._remember(maker._normalize_message(m))
     d = maker.interpret(sc["message"])
-    history_part = llm.prompts[0].split("Recent reports")[1].split("Current report")[0]
-    assert "drone_2: fire" in history_part and "drone_3: smoke" in history_part
-    assert "m from the current report" in history_part
+    history_part = llm.prompts[0].split("Recent reports")[1].split("Report:")[0]
+    assert "drone_2 (" in history_part and ": fire" in history_part
+    assert "drone_3 (" in history_part and ": smoke" in history_part
+    assert "m away" in history_part
     assert "drone_1" not in history_part      # current message not duplicated
     assert d["risk_level"] == "high"
 
@@ -208,7 +212,7 @@ def test_history_reaches_prompt_without_current_message():
 def test_old_reports_ignored():
     hist = [{"drone_id": "d2", "object": "smoke", "timestamp": "2026-07-10T12:00:00+00:00"}]
     cur = {"drone_id": "d1", "object": "car", "timestamp": "2026-07-10T12:05:00+00:00"}
-    assert summarize_history(hist, cur) == "No recent reports."
+    assert summarize_history(hist, cur) == "none"
 
 
 def test_history_is_bounded():
@@ -258,3 +262,84 @@ def test_ollama_unreachable():
     assert not client.is_available()
     with pytest.raises(LLMUnavailable):
         client("hi")
+
+
+# --- swarm-v2 feedback (description, count, heavy_vehicle, low+notify) -----------
+
+SWARM_MSG = {"drone_id": "drone_1", "object": "person", "count": 61, "confidence": 0.7, "direction": "left",
+             "bbox": [110, 558, 126, 586], "location": [0.0, 0.0, 30.0], "frame": 450,
+             "timestamp": "2026-10-04T11:25:03+00:00"}
+
+
+def test_description_from_llm_is_kept():
+    llm = FakeLLM(reply("high", "hover_and_monitor", "Hold and monitor the crowd.", True, "all",
+                        desc="The drone sees a crowd of about 60 people on the left."))
+    d = LLMDecisionMaker(use_llm=True, llm_client=llm).interpret(SWARM_MSG)
+    assert d["description"] == "The drone sees a crowd of about 60 people on the left."
+    assert d["decision_source"] == "llm"
+
+
+def test_rules_also_give_description():
+    d = LLMDecisionMaker().interpret(SWARM_MSG)
+    assert d["description"] == "The drone sees a crowd of about 61 people on the left."
+    assert d["action"] == "hover_and_monitor"
+
+
+def test_count_and_compact_fields_in_prompt():
+    llm = FakeLLM(reply("high", "hover_and_monitor", "x", True, "all"))
+    LLMDecisionMaker(use_llm=True, llm_client=llm).interpret(SWARM_MSG)
+    report_line = [l for l in llm.prompts[0].splitlines() if l.startswith("Report:")][0]
+    assert '"count":61' in report_line
+    for noise in ("bbox", "frame", "location", "timestamp"):
+        assert noise not in report_line
+
+
+def test_prompt_starts_with_identical_static_part():
+    a, b = FakeLLM(reply()), FakeLLM(reply())
+    LLMDecisionMaker(use_llm=True, llm_client=a).interpret(SWARM_MSG)
+    LLMDecisionMaker(use_llm=True, llm_client=b).interpret({"drone_id": "drone_3", "object": "tree"})
+    assert a.prompts[0].split("Recent reports")[0] == b.prompts[0].split("Recent reports")[0]
+
+
+def test_prompt_is_short():
+    llm = FakeLLM(reply())
+    maker = LLMDecisionMaker(use_llm=True, llm_client=llm)
+    for i in range(10):   # full history
+        maker.interpret({"drone_id": f"drone_{i % 3 + 1}", "object": "car", "count": 3,
+                         "location": [30.0 * (i % 3), 0, 30], "timestamp": f"2026-10-04T11:25:0{i}+00:00"})
+    assert len(llm.prompts[-1]) < 1600      # ~400 tokens (was ~2400 chars)
+
+
+def test_heavy_vehicle_never_high_even_with_neighbour_evidence():
+    hist = [{"drone_id": "drone_2", "object": "heavy_vehicle", "count": 2, "confidence": 0.8, "location": [30, 0, 30]}]
+    msg = {"drone_id": "drone_1", "object": "heavy vehicles", "count": 3, "confidence": 0.7, "location": [0, 0, 30]}
+    final, overrides = apply_safety_override(msg, parse_and_validate(reply("high", "hover_and_monitor", "Stop.", True, "all")), hist)
+    assert final["risk_level"] == "medium" and final["action"] == "update_awareness_map"
+    assert "escalation_capped" in overrides
+
+
+def test_no_low_risk_swarm_alert():
+    # The demo bug: "low: notify_swarm".
+    msg = {"drone_id": "drone_1", "object": "boat", "confidence": 0.9}   # rules: medium
+    final, _ = apply_safety_override(msg, parse_and_validate(reply("low", "notify_swarm", "Alert all.", True, "all")))
+    assert not (final["risk_level"] == "low" and final["action"] == "notify_swarm")
+    msg = {"drone_id": "drone_1", "object": "kite", "confidence": 0.9}   # rules: low/continue
+    final, overrides = apply_safety_override(msg, parse_and_validate(reply("low", "notify_swarm", "Alert all.", True, "all")))
+    assert (final["action"], final["broadcast"], final["target_drone"]) == ("continue_mission", False, "none")
+    assert "low_risk_no_alert" in overrides
+
+
+def test_unsupported_escalation_resets_reaction_but_keeps_description():
+    msg = {"drone_id": "drone_3", "object": "kite", "confidence": 0.9, "location": [80, 0, 30]}
+    final, overrides = apply_safety_override(msg, parse_and_validate(
+        reply("high", "notify_swarm", "Alert all.", True, "all", desc="The drone sees a kite.")), [])
+    assert (final["risk_level"], final["action"], final["broadcast"]) == ("low", "continue_mission", False)
+    assert final["description"] == "The drone sees a kite."
+
+
+def test_yolo_class_names_are_understood():
+    from rule_based_fallback import object_name
+    assert object_name("heavy vehicles") == "heavy_vehicle"
+    assert object_name("Light Vehicles") == "light_vehicle"
+    assert object_name("buildings") == "building"
+    assert rule_based_decision({"object": "heavy vehicles"})["risk_level"] == "medium"

@@ -44,12 +44,15 @@ MQTT alert ─► normalize ─► prompt (+ recent swarm alerts) ─► LLM (Ol
 
 `location` can be world coordinates `[x, y, z]` (Gazebo) or a YOLO box `[x1, y1, x2, y2]`
 (direction is then estimated from the box). Messages from `drone_integration.py` with
-`distance`, `direction` and `confidence` are also supported. Missing fields are fine.
+`distance`, `direction` and `confidence` are also supported, as well as the swarm-v2 format with
+`count` (how many objects of that class are in the frame). YOLO class names such as
+`heavy vehicles` / `buildings` are normalised (`heavy_vehicle`, `building`). Missing fields are fine.
 
 ## Output example
 
 ```json
 {
+  "description": "The drone sees a crowd of about 60 people on the left.",
   "risk_level": "high",
   "action": "notify_swarm",
   "recommendation": "Fire confirmed by two nearby drones. Alert the swarm and send one drone to inspect.",
@@ -62,6 +65,8 @@ MQTT alert ─► normalize ─► prompt (+ recent swarm alerts) ─► LLM (Ol
 }
 ```
 
+- `description`: one English sentence describing what the drone sees, built only from the report data
+  (the LLM does not see the image). Rule-based decisions also include one.
 - `action`: `emergency_stop`, `avoid_obstacle`, `notify_swarm`, `track_person`, `hover_and_monitor`,
   `verify_detection`, `update_awareness_map`, `continue_mission`
 - `decision_source`: `llm` | `llm+safety` (corrected, see `safety_overrides`) | `rule_based_fallback` (see `fallback_reason` if the LLM failed)
@@ -127,7 +132,12 @@ both models. Small LLMs are useful for context reasoning but must be constrained
   `track_person` only for a person), so the model cannot even generate the others.
 - **The LLM never weakens a hard rule**: an obstacle at 4 m is always `emergency_stop`, fire is always broadcast.
 - **Escalation needs evidence**: the LLM may raise risk above the rules only if another drone recently
-  reported the same kind of object within 50 m. Every correction is logged in `safety_overrides`.
+  reported the same kind of object within 50 m, and only fire, smoke and people can reach `high`
+  (vehicles, trees... stop at `medium`). If the risk is reset, the reaction is reset too, so a decision is
+  never "low risk + alert the swarm". Every correction is logged in `safety_overrides`.
+- **Short prompt with a static prefix** (~350 tokens, was ~600): the unchanging instructions come first so
+  Ollama can reuse its cache; only the history, the report and the allowed actions change. Output is
+  capped at 120 tokens (`num_predict`).
 - **Structured output**: a JSON schema is sent to Ollama and the answer is validated again in Python
   (closed set of actions, real booleans, valid `target_drone`).
 - **Distance before confidence**: a close object is never ignored because YOLO was unsure.

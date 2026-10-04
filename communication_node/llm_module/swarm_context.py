@@ -39,8 +39,12 @@ def distance_between(a: Dict[str, Any], b: Dict[str, Any]) -> Optional[float]:
 
 
 def summarize_history(history: List[Dict[str, Any]], current: Dict[str, Any],
-                      max_age_s: float = 60.0, limit: int = 8) -> str:
-    """Most-recent-first summary of earlier messages (excluding the current one)."""
+                      max_age_s: float = 60.0, limit: int = 4) -> str:
+    """Short, most-recent-first summary of earlier reports (excluding the current one).
+
+    Kept compact on purpose: every line costs LLM time.
+    Example line: "drone_2 (30 m away, 5 s ago): person x12, front"
+    """
     now = parse_time(current.get("timestamp"))
     lines = []
     for msg in reversed(history):
@@ -50,22 +54,30 @@ def summarize_history(history: List[Dict[str, Any]], current: Dict[str, Any],
         age = None if (now is None or ts is None) else now - ts
         if age is not None and age > max_age_s:
             continue
-        who = msg.get("drone_id", "?")
+        who = str(msg.get("drone_id", "?"))
+        where = []
         if who == current.get("drone_id"):
-            who += " (same drone)"
-        line = f"- {who}: {msg.get('object', 'unknown')}"
+            where.append("same drone")
+        else:
+            gap = distance_between(current, msg)
+            if gap is not None:
+                where.append(f"{gap:.0f} m away")
+        if age is not None:
+            where.append(f"{age:.0f} s ago")
+        line = who + (f" ({', '.join(where)})" if where else "") + f": {msg.get('object', 'unknown')}"
+        try:
+            count = int(msg.get("count") or 1)
+        except (TypeError, ValueError):
+            count = 1
+        if count > 1:
+            line += f" x{count}"
         if msg.get("distance") is not None:
             line += f" at {msg['distance']:g} m"
         if msg.get("direction") not in (None, "unknown"):
-            line += f" {msg['direction']}"
-        if msg.get("confidence") is not None:
-            line += f" (confidence {msg['confidence']:.2f})"
-        gap = distance_between(current, msg)
-        if gap is not None:
-            line += f", {gap:.0f} m from the current report"
-        if age is not None:
-            line += f", {age:.0f} s ago"
+            line += f", {msg['direction']}"
+        if msg.get("confidence") is not None and msg["confidence"] < 0.5:
+            line += f", uncertain ({msg['confidence']:.2f})"
         lines.append(line)
         if len(lines) >= limit:
             break
-    return "\n".join(lines) if lines else "No recent reports."
+    return "\n".join(lines) if lines else "none"
