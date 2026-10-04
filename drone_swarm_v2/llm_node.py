@@ -35,7 +35,8 @@ def on_detection(topic, data):
 
     latency = decision.get("llm_latency_ms")
     took = f"{latency / 1000:.1f} δευτ." if latency else "-"
-    log(f"Απάντηση ({decision['decision_source']}, {took}): {decision['recommendation']}")
+    log(f"Απάντηση ({decision['decision_source']}, {took}): {decision.get('description', '')}")
+    log(f"     πρόταση: {decision['recommendation']}")
     log(f"     risk={decision['risk_level']}  action={decision['action']}")
     if "safety_overrides" in decision:
         log(f"     έλεγχος ασφαλείας: {decision['safety_overrides']}")

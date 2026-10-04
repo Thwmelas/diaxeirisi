@@ -25,12 +25,14 @@ ACTIONS = {
     "continue_mission": "Nothing critical, continue the mission.",
 }
 
-REQUIRED_FIELDS = ("risk_level", "action", "recommendation", "broadcast", "target_drone")
+REQUIRED_FIELDS = ("description", "risk_level", "action", "recommendation", "broadcast", "target_drone")
 
 # Sent to Ollama as "format": the model is constrained to produce this shape.
 DECISION_JSON_SCHEMA = {
     "type": "object",
     "properties": {
+        # description first: the model describes the scene, then decides.
+        "description": {"type": "string"},
         "risk_level": {"type": "string", "enum": list(RISK_LEVELS)},
         "action": {"type": "string", "enum": list(ACTIONS)},
         "recommendation": {"type": "string"},
@@ -97,6 +99,10 @@ def validate_decision(data: Dict[str, Any]) -> Dict[str, Any]:
     if action not in ACTIONS:
         raise InvalidDecision(f"Invalid action: {data['action']!r}")
 
+    description = " ".join(str(data["description"]).split())
+    if not description:
+        raise InvalidDecision("Empty description")
+
     recommendation = str(data["recommendation"]).strip()
     if not recommendation:
         raise InvalidDecision("Empty recommendation")
@@ -106,6 +112,7 @@ def validate_decision(data: Dict[str, Any]) -> Dict[str, Any]:
         raise InvalidDecision(f"Invalid target_drone: {data['target_drone']!r}")
 
     return {
+        "description": description[:250],
         "risk_level": risk,
         "action": action,
         "recommendation": recommendation[:200],

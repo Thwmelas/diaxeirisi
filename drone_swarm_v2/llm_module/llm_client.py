@@ -28,7 +28,7 @@ class LLMUnavailable(RuntimeError):
 class OllamaClient:
     def __init__(self, model: Optional[str] = None, url: Optional[str] = None,
                  timeout: Optional[float] = None, json_schema: Optional[Dict[str, Any]] = None,
-                 temperature: float = 0.0, max_tokens: int = 200):
+                 temperature: float = 0.0, max_tokens: int = 160):
         self.model = model or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         self.url = (url or os.getenv("OLLAMA_URL", "http://localhost:11434")).rstrip("/")
         self.timeout = float(timeout or os.getenv("OLLAMA_TIMEOUT", "20"))

@@ -22,14 +22,14 @@ from datetime import datetime
 from pathlib import Path
 
 from llm_decision import LLMDecisionMaker, default_llm_client
-from scenarios import SCENARIOS
+from scenarios import SCENARIOS, SWARM_V2_SCENARIOS
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
-def run_engine(name, client):
+def run_engine(name, client, scenarios=SCENARIOS):
     rows = []
-    for sc in SCENARIOS:
+    for sc in scenarios:
         maker = LLMDecisionMaker(drone_id="eval", use_llm=client is not None, llm_client=client)
         for earlier in sc.get("context", []):
             maker._remember(maker._normalize_message(earlier))
@@ -38,6 +38,7 @@ def run_engine(name, client):
             "scenario": sc["name"],
             "has_context": bool(sc.get("context")),
             "risk_level": d["risk_level"], "action": d["action"],
+            "description": d.get("description"), "recommendation": d.get("recommendation"),
             "correct": d["risk_level"] in sc["expect"]["risk"] and d["action"] in sc["expect"]["actions"],
             "source": d["decision_source"],
             "overrides": d.get("safety_overrides", []),
@@ -64,7 +65,7 @@ def pct(x):
     return "-" if x is None else f"{100 * x:.0f}%"
 
 
-def to_markdown(results):
+def to_markdown(results, scenarios=SCENARIOS):
     out = ["| Engine | Accuracy | Swarm-context accuracy | LLM used | Safety overrides | Mean latency | Max latency |",
            "|---|---|---|---|---|---|---|"]
     for r in results:
@@ -76,7 +77,7 @@ def to_markdown(results):
     out += ["", "### Per scenario", "",
             "| Scenario | " + " | ".join(r["summary"]["engine"] for r in results) + " |",
             "|---|" + "---|" * len(results)]
-    for i, sc in enumerate(SCENARIOS):
+    for i, sc in enumerate(scenarios):
         cells = [f"{'✓' if r['rows'][i]['correct'] else '✗'} {r['rows'][i]['risk_level']}/{r['rows'][i]['action']}"
                  for r in results]
         out.append(f"| {sc['name']} | " + " | ".join(cells) + " |")
@@ -88,7 +89,7 @@ def main():
     parser.add_argument("--models", nargs="*", default=[])
     args = parser.parse_args()
 
-    results = [run_engine("rules", None)]
+    clients = [("rules", None)]
     for model in args.models:
         client = default_llm_client()
         client.model = model
@@ -97,13 +98,25 @@ def main():
             continue
         print(f"Loading {client.name} into memory (warm-up) ...")
         client.warm_up()
-        print(f"Evaluating {client.name} ...")
-        results.append(run_engine(client.name, client))
+        clients.append((client.name, client))
+
+    sets = [("Original scenarios (guardrails were tuned on these)", SCENARIOS),
+            ("swarm-v2 scenarios (new, held-out)", SWARM_V2_SCENARIOS)]
+    all_results, md = {}, ""
+    for title, scenarios in sets:
+        print(f"Evaluating: {title} ...")
+        results = [run_engine(name, client, scenarios) for name, client in clients]
+        all_results[title] = results
+        md += f"## {title}\n\n" + to_markdown(results, scenarios) + "\n"
+
+    examples = [r for r in all_results[sets[1][0]][-1]["rows"]][:5]
+    md += "## Example descriptions (" + all_results[sets[1][0]][-1]["summary"]["engine"] + ")\n\n"
+    for row in examples:
+        md += f"- **{row['scenario']}**: {row['description']} -> {row['risk_level']}/{row['action']} ({row['source']})\n"
 
     RESULTS_DIR.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    (RESULTS_DIR / f"eval_{stamp}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    md = to_markdown(results)
+    (RESULTS_DIR / f"eval_{stamp}.json").write_text(json.dumps(all_results, indent=2), encoding="utf-8")
     (RESULTS_DIR / f"eval_{stamp}.md").write_text(md, encoding="utf-8")
     print(md)
     print(f"Saved results/eval_{stamp}.json and .md")

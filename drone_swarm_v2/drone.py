@@ -84,7 +84,8 @@ def on_decision(topic, data):
     global last_answer, my_request
     obj, risk, action = data["object"], data["risk_level"], data["action"]
     last_answer = f"{obj}: {risk} / {action}"
-    log(f"LLM ({data.get('decision_source')}): {data['recommendation']}")
+    log(f"LLM ({data.get('decision_source')}): {data.get('description', '')}")
+    log(f"     πρόταση: {data['recommendation']}")
     log(f"     risk={risk}  action={action}")
     if "safety_overrides" in data:
         log(f"     (ο έλεγχος ασφαλείας διόρθωσε το LLaMA: {data['safety_overrides']})")
