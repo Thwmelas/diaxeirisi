@@ -13,6 +13,9 @@ if ! pgrep -x ollama > /dev/null; then
     sleep 3
 fi
 
+echo "Swarm monitor..."
+xterm -fa "DejaVu Sans Mono" -fs 10 -T "Swarm monitor" -geometry 110x30 -hold -e "python3 swarm_monitor.py" &
+sleep 1
 echo "3/4: LLM node..."
 xterm -fa "DejaVu Sans Mono" -fs 10 -T "LLM node" -geometry 110x30 -hold -e "python3 llm_node.py" &
 sleep 2
