@@ -1,0 +1,5 @@
+best.pt
+videos/
+__pycache__/
+*.log
+results/
