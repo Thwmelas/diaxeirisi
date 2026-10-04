@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from rule_based_fallback import rule_based_decision
+from rule_based_fallback import LABELS, object_count, object_name, rule_based_decision
 from safety import allowed_actions, apply_safety_override
 from schema import ACTIONS, DECISION_JSON_SCHEMA, decision_schema, parse_and_validate
 from swarm_context import summarize_history
@@ -43,9 +43,9 @@ STATIC_PROMPT = """You are the decision module of a drone swarm. A drone's YOLO 
 You do not see the image: use only the report and the recent swarm reports.
 Reply with JSON only.
 
-description: one English sentence saying what the drone sees, using only the report
-(object, count, direction, distance) and the same drone's recent reports. Invent nothing.
-Example: "The drone sees a crowd of about 60 people on the left."
+description: one English sentence saying what the drone sees. Restate the Facts line in your
+own words: same object, same number, same direction. Never add a distance that is not in the Facts.
+Example: Facts "4 boats, in front, distance unknown" -> "The drone sees four boats ahead."
 
 Rules:
 - emergency_stop / avoid_obstacle only if distance <= 10 m. No distance = no collision.
@@ -135,8 +135,25 @@ class LLMDecisionMaker:
             f"{STATIC_PROMPT}\n\n"
             f"Recent reports:\n{history_text}\n\n"
             f"Report: {json.dumps(current, separators=(',', ':'))}\n"
+            f"Facts: {self._facts(message)}\n"
             f"Allowed actions: {', '.join(allowed)}"
         )
+
+    @staticmethod
+    def _facts(message: DroneMessage) -> str:
+        """The report in plain words, so a small model does not have to interpret numbers."""
+        obj, count = object_name(message.get("object")), object_count(message)
+        singular, plural = LABELS.get(obj, (obj.replace("_", " "), obj.replace("_", " ") + "s"))
+        parts = [f"1 {singular}" if count == 1 else f"{count} {plural}"]
+        direction = message.get("direction") or "unknown"
+        parts.append({"front": "in front", "back": "behind"}.get(direction, f"on the {direction}")
+                     if direction in ("left", "right", "front", "back") else f"direction {direction}")
+        distance = message.get("distance")
+        parts.append(f"{distance:g} m away" if distance is not None else "distance unknown")
+        confidence = message.get("confidence")
+        if confidence is not None and confidence < 0.5:
+            parts.append("uncertain detection")
+        return ", ".join(parts)
 
     @staticmethod
     def parse_llm_json(raw_response: str) -> Decision:

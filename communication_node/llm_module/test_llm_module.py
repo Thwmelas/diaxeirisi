@@ -25,7 +25,7 @@ from swarm_context import summarize_history
 
 
 def reply(risk="low", action="continue_mission", rec="Continue.", broadcast=False, target="none",
-          desc="The drone sees something."):
+          desc="The drone sees fire."):
     return json.dumps({"description": desc, "risk_level": risk, "action": action, "recommendation": rec,
                        "broadcast": broadcast, "target_drone": target})
 
@@ -118,7 +118,7 @@ def test_parse_rejects_invalid(bad):
 # --- LLM path -------------------------------------------------------------------
 
 def test_llm_answer_used():
-    llm = FakeLLM(reply("medium", "update_awareness_map", "Map the car.", True, "all"))
+    llm = FakeLLM(reply("medium", "update_awareness_map", "Map the car.", True, "all", desc="The drone sees a car."))
     d = LLMDecisionMaker(use_llm=True, llm_client=llm).interpret(
         {"drone_id": "drone_1", "object": "car", "distance": 30, "confidence": 0.8})
     assert d["decision_source"] == "llm" and d["recommendation"] == "Map the car."
@@ -343,3 +343,57 @@ def test_yolo_class_names_are_understood():
     assert object_name("Light Vehicles") == "light_vehicle"
     assert object_name("buildings") == "building"
     assert rule_based_decision({"object": "heavy vehicles"})["risk_level"] == "medium"
+
+
+# --- third evaluation feedback: invented descriptions, verify/map rules ---------
+
+REAL_BAD_DESCRIPTIONS = [   # produced by llama3.2:3b in evaluate.py (2026-10-04)
+    ({"object": "person", "count": 1, "direction": "front"}, "The drone sees a person on the left.", "wrong_direction"),
+    ({"object": "person", "count": 3, "direction": "right"}, "The drone sees a person on the right.", "wrong_count"),
+    ({"object": "car", "count": 5, "direction": "front"}, "The drone sees a car on the front, 15 meters away.", "invented_distance"),
+    ({"object": "car", "count": 25, "direction": "right"}, "A car is 15 meters to the right.", "invented_distance"),
+]
+GOOD_DESCRIPTIONS = [
+    ({"object": "person", "count": 61, "direction": "left"}, "The drone sees a crowd of about 60 people on the left."),
+    ({"object": "heavy_vehicle", "count": 3, "direction": "left"}, "The drone sees three trucks on the left."),
+    ({"object": "tree", "count": 12, "direction": "front"}, "The drone sees about 12 trees ahead."),
+    ({"object": "boat", "count": 1, "direction": "front"}, "A single boat is in front of the drone."),
+    ({"object": "car", "count": 1, "direction": "left", "distance": 8}, "A car is 8 m away on the left."),
+]
+
+
+@pytest.mark.parametrize("msg,text,problem", REAL_BAD_DESCRIPTIONS)
+def test_invented_descriptions_are_detected(msg, text, problem):
+    from safety import description_problem
+    assert description_problem(msg, text) == problem
+
+
+@pytest.mark.parametrize("msg,text", GOOD_DESCRIPTIONS)
+def test_correct_descriptions_pass(msg, text):
+    from safety import description_problem
+    assert description_problem(msg, text) is None
+
+
+def test_invented_description_replaced_by_facts():
+    msg = {"drone_id": "drone_2", "object": "car", "count": 5, "confidence": 0.88, "direction": "front"}
+    llm = FakeLLM(reply("medium", "update_awareness_map", "Map the cars.", True, "all",
+                        desc="The drone sees a car on the front, 15 meters away."))
+    d = LLMDecisionMaker(use_llm=True, llm_client=llm).interpret(msg)
+    assert d["description"] == "The drone sees 5 cars in front."
+    assert d["description_rejected"] == "The drone sees a car on the front, 15 meters away."
+    assert "description_fixed" in d["safety_overrides"]
+
+
+def test_verify_only_for_uncertain_and_no_uncertain_objects_on_map():
+    from safety import allowed_actions
+    assert "verify_detection" not in allowed_actions({"object": "person"})                 # no confidence
+    assert "verify_detection" not in allowed_actions({"object": "car", "confidence": 0.8})
+    uncertain = allowed_actions({"object": "car", "confidence": 0.35, "distance": 20})
+    assert "verify_detection" in uncertain and "update_awareness_map" not in uncertain
+
+
+def test_facts_line_in_prompt():
+    llm = FakeLLM(reply("high", "hover_and_monitor", "x", True, "all"))
+    LLMDecisionMaker(use_llm=True, llm_client=llm).interpret(SWARM_MSG)
+    assert "Facts: 61 people, on the left, distance unknown" in llm.prompts[0]
+    assert "60 people" not in llm.prompts[0]      # no copyable example matching real data

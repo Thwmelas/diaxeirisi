@@ -66,7 +66,9 @@ MQTT alert ─► normalize ─► prompt (+ recent swarm alerts) ─► LLM (Ol
 ```
 
 - `description`: one English sentence describing what the drone sees, built only from the report data
-  (the LLM does not see the image). Rule-based decisions also include one.
+  (the LLM does not see the image). It is checked against the report (object, count, direction, no
+  invented distance); if it contradicts it, the factual rule-based description is used instead and
+  the LLM's text is kept in `description_rejected`. Rule-based decisions also include one.
 - `action`: `emergency_stop`, `avoid_obstacle`, `notify_swarm`, `track_person`, `hover_and_monitor`,
   `verify_detection`, `update_awareness_map`, `continue_mission`
 - `decision_source`: `llm` | `llm+safety` (corrected, see `safety_overrides`) | `rule_based_fallback` (see `fallback_reason` if the LLM failed)

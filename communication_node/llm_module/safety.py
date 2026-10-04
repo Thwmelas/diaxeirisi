@@ -11,14 +11,19 @@
    stop at "medium".
 4. When the risk is reset to the rules, the reaction (action, broadcast,
    target) is reset too, so we never publish e.g. "low risk + notify_swarm".
-The LLM's description of the scene is always kept.
+5. The LLM's description is kept only if it agrees with the report (object,
+   count, direction, no invented distance); otherwise the factual rule-based
+   description is used and the rejected one is kept in "description_rejected".
 """
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
+import re
+
 from rule_based_fallback import (
-    CLOSE_DISTANCE_M, EMERGENCY_DISTANCE_M, HAZARDS, LOW_CONFIDENCE, _to_float, object_name, rule_based_decision,
+    CLOSE_DISTANCE_M, EMERGENCY_DISTANCE_M, HAZARDS, LABELS, LOW_CONFIDENCE, _to_float, object_count,
+    object_name, rule_based_decision,
 )
 from schema import ACTIONS, RISK_ORDER
 from swarm_context import distance_between, parse_time
@@ -46,6 +51,11 @@ def allowed_actions(message: Dict[str, Any]) -> List[str]:
             allowed.discard("track_person")
         if obj in HAZARDS and (confidence is None or confidence >= LOW_CONFIDENCE):
             allowed -= {"continue_mission", "update_awareness_map"}
+        uncertain = confidence is not None and confidence < LOW_CONFIDENCE
+        if uncertain:
+            allowed.discard("update_awareness_map")   # unverified objects don't go on the shared map
+        else:
+            allowed.discard("verify_detection")       # nothing to verify if YOLO is sure (or gave no score)
     return [a for a in ACTIONS if a in allowed]
 
 
@@ -75,6 +85,59 @@ def has_swarm_evidence(message: Dict[str, Any], history: Optional[Iterable[Dict[
             continue
         return True
     return False
+
+
+NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12, "twenty": 20, "thirty": 30,
+                "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100}
+QUANTITY_WORDS = ("crowd", "group", "several", "many", "multiple", "some", "few", "numerous", "dozens")
+DIRECTION_WORDS = {"left": "left", "right": "right", "front": "front", "ahead": "front",
+                   "behind": "back", "back": "back", "above": "above", "below": "below"}
+SYNONYMS = {"person": ("person", "people", "pedestrian", "crowd", "man", "woman", "human"),
+            "car": ("car", "vehicle"), "heavy_vehicle": ("vehicle", "truck", "bus", "lorry"),
+            "light_vehicle": ("vehicle", "motorcycle", "motorbike", "bike", "tricycle", "scooter"),
+            "plane": ("plane", "aircraft", "airplane"), "airplane": ("plane", "aircraft", "airplane"),
+            "building": ("building", "house", "structure"), "tree": ("tree",), "boat": ("boat", "ship", "vessel"),
+            "fire": ("fire", "flame"), "smoke": ("smoke",)}
+_DISTANCE_RE = re.compile(r"\b\d+(?:\.\d+)?\s*(?:m|meters?|metres?)\b")
+
+
+def description_problem(message: Dict[str, Any], text: str) -> Optional[str]:
+    """Return why the description contradicts the report, or None if it is consistent.
+
+    The LLM does not see the image, so anything not in the report (a distance from a
+    video without depth, a different direction, a wrong number) is invented.
+    """
+    t = " " + text.lower() + " "
+    obj, count = object_name(message.get("object")), object_count(message)
+
+    if obj != "unknown":
+        singular, plural = LABELS.get(obj, (obj.replace("_", " "), obj.replace("_", " ") + "s"))
+        words = set(SYNONYMS.get(obj, ())) | {singular, plural, singular.split()[-1]}
+        if not any(w in t for w in words):
+            return "object_missing"
+
+    distance = _to_float(message.get("distance"))
+    if distance is None and _DISTANCE_RE.search(t):
+        return "invented_distance"
+
+    direction = str(message.get("direction") or "unknown").lower()
+    mentioned = {canon for word, canon in DIRECTION_WORDS.items() if re.search(rf"\b{word}\b", t)}
+    if direction in DIRECTION_WORDS.values() and mentioned and direction not in mentioned:
+        return "wrong_direction"
+
+    numbers = [int(float(n)) for n in re.findall(r"\b(\d+(?:\.\d+)?)\b(?!\s*(?:m|meters?|metres?)\b)", t)]
+    numbers += [v for w, v in NUMBER_WORDS.items() if re.search(rf"\b{w}\b", t)]
+    numbers = [n for n in numbers if n != 0]
+    if count == 1:
+        if any(n >= 2 for n in numbers):
+            return "wrong_count"
+    elif numbers:
+        if not any(abs(n - count) <= max(1, 0.2 * count) for n in numbers):
+            return "wrong_count"
+    elif not any(w in t for w in QUANTITY_WORDS):
+        return "wrong_count"      # several objects described as one
+    return None
 
 
 def _use_rules_reaction(final: Dict[str, Any], rules: Dict[str, Any]) -> None:
@@ -135,5 +198,11 @@ def apply_safety_override(
     if final["broadcast"] and final["target_drone"] == "none":
         final["target_drone"] = "all"
         overrides.append("target_fixed")
+
+    # 5. The description must agree with the report; otherwise use the factual one.
+    if "description" in final and description_problem(message, final["description"]):
+        final["description_rejected"] = final["description"]
+        final["description"] = rules["description"]
+        overrides.append("description_fixed")
 
     return final, overrides
