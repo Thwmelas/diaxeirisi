@@ -69,3 +69,24 @@ This node listens to the `drones/#` wildcard topic and automatically parses and 
 - `data/` and `logs/` are ignored by git because they are runtime files.
 - `config/passwd` is kept in the project, but the current config does not require authentication.
 - If you want a cleaner demo, keep the current anonymous setup and avoid changing the broker config.
+## 🛰️ Swarm Communication Protocol (MQTT Architecture)
+
+In this new version, Gazebo is used only as a visual bonus[cite: 2]. The drones are now real, independent entities that communicate exclusively via the MQTT Broker, while a central node (LLM Node - LLaMA) handles decision-making[cite: 2].
+
+### 1. Why did we choose MQTT?
+MQTT (Message Queuing Telemetry Transport) was selected because[cite: 5]:
+- **It is extremely lightweight:** Instead of transmitting heavy video streams over the network, each drone analyzes its video locally (via OpenCV and YOLO) and sends only the results (compressed JSON payloads)[cite: 2, 5].
+- **Pub/Sub Architecture (Publish/Subscribe):** The drones do not need to know the IP addresses of other drones or the LLaMA node. They simply broadcast to the network (publish) or listen to specific channels (subscribe), providing complete decoupling between nodes.
+
+### 2. Why do we use these 4 specific Topics?
+The 4 topics (`drones/<id>/detections`, `drones/<id>/decision`, `swarm/alerts`, `swarm/confirmations`) serve as the strict **Common Contract** for the team[cite: 3]. 
+This agreement allows each member to write their code independently[cite: 3]:
+- It ensures that no drone talks directly to another drone (preventing chaos)[cite: 2].
+- It separates the **information** (detections sent to the LLM) from the **action/decision** (decisions/alerts sent from the LLM to the drones)[cite: 3].
+- It allows the creation of passive observers (like `swarm_monitor.py`), which listens to all topics (using the wildcard `#`) without affecting the communication flow[cite: 3, 5].
+
+### 3. What is the QoS (Quality of Service) we use?
+QoS in MQTT defines the guarantee of message delivery[cite: 5].
+In our implementation, we use the default **QoS 0 (At most once / Fire and Forget)**:
+- **How it works:** The message is sent once, and the sender does not wait for an acknowledgment (ACK) from the Broker.
+- **Why we chose it:** Detections from YOLO are generated continuously (multiple frames per second). If a packet is lost in the network, it is not a critical issue, as the next JSON payload will arrive in a few milliseconds. QoS 0 provides the **maximum possible speed** and zero latency for the swarm, preventing network bottlenecks.
