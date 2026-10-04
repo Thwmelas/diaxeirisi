@@ -192,6 +192,7 @@ try:
             m = current_mode()
         if m != shown_mode:
             log(f"Κατάσταση: {shown_mode} -> {m}")
+            client.publish(f"drones/{DRONE_ID}/state", {"drone_id": DRONE_ID, "mode": m})
             shown_mode = m
 
         # Κανένα drone δεν απάντησε στο αίτημά μου μέσα στον χρόνο

@@ -1,4 +1,7 @@
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from mqtt_client import SwarmClient
 import os
 import rclpy
 import math
@@ -73,6 +76,13 @@ class PatrolNode(Node):
 
         self.timer = self.create_timer(0.1, self._timer_callback)
 
+        # HOVER από το σμήνος: όταν το drone.py μπαίνει σε HOVER, κρατάμε θέση
+        self.swarm_id = "drone_" + DRONE_NS.split("_")[1]
+        self.hold_pos = None
+        self.hold_since = None
+        self.mqtt = SwarmClient(f"patrol_{self.swarm_id}")
+        self.mqtt.subscribe(f"drones/{self.swarm_id}/state", self._on_swarm_state)
+
         self.get_logger().info(
             f"Patrol ξεκίνησε. {NUM_WAYPOINTS} waypoints: {self.waypoints}")
 
@@ -81,6 +91,10 @@ class PatrolNode(Node):
 
     def _timer_callback(self):
         self._publish_offboard_mode()
+        if self.hold_pos is not None:
+            hx, hy, hz = self.hold_pos
+            self._send_setpoint(hx, hy, hz, yaw=self.current_yaw)
+            return
 
         if self.state == "TAKEOFF":
             self._send_setpoint(0.0, 0.0, TAKEOFF_HEIGHT, yaw=0.0)
@@ -143,6 +157,19 @@ class PatrolNode(Node):
             self._send_command(VehicleCommand.VEHICLE_CMD_NAV_LAND)
             self.get_logger().info("Εντολή προσγείωσης στάλθηκε.")
             self.timer.cancel()
+
+    def _on_swarm_state(self, topic, data):
+        """Το drone.py άλλαξε κατάσταση: σε HOVER κρατάμε θέση, αλλιώς συνεχίζουμε."""
+        if data.get("mode") == "HOVER" and self.state == "PATROL" and self.hold_pos is None:
+            x, y, up = self.position
+            self.hold_pos = (x, y, -up)
+            self.hold_since = time.time()
+            self.get_logger().info(f"HOVER από το σμήνος: κρατάω θέση ({x:.1f}, {y:.1f})")
+        elif data.get("mode") != "HOVER" and self.hold_pos is not None:
+            if self.scan_start_time is not None:
+                self.scan_start_time += time.time() - self.hold_since
+            self.hold_pos = None
+            self.get_logger().info("Τέλος HOVER: συνεχίζω την περιπολία")
 
     def _reached(self, tx, ty, tz_ned):
         x, y, z = self.position
